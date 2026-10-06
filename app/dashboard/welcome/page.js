@@ -176,7 +176,7 @@ export default function WelcomePage() {
                   <Field label="Color">
                     <input
                       type="color"
-                      value={form.color || '#b9a7ff'}
+                      value={form.color || '#3C527F'}
                       onChange={(event) => set('color')(event.target.value)}
                     />
                   </Field>
