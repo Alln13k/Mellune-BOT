@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Guild {
+  id             String           @id
+  name           String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  settings       GuildSettings?
+  users          User[]
+  cases          ModerationCase[]
+  warnings       Warning[]
+  tickets        Ticket[]
+  giveaways      Giveaway[]
+  automodRules   AutoModRule[]
+  welcomeConfig  WelcomeConfig?
+  levelUsers     LevelUser[]
+  reactionRoles  ReactionRole[]
+  customCommands CustomCommand[]
+  logConfig      LogConfig?
+}
+
+model GuildSettings {
+  id             Int      @id @default(autoincrement())
+  guildId        String   @unique
+  staffRoleId    String?
+  ticketCategoryId String?
+  xpEnabled      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  guildId   String
+  userId    String
+  username  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  warnings  Warning[]         @relation("UserWarnings")
+  cases     ModerationCase[]  @relation("CaseTarget")
+  @@unique([guildId, userId])
+  @@index([guildId])
+}
+
+model ModerationCase {
+  id         Int      @id @default(autoincrement())
+  guildId    String
+  targetId   String
+  moderatorId String
+  action     String
+  reason     String   @default("No reason provided.")
+  createdAt  DateTime @default(now())
+  guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  target     User     @relation("CaseTarget", fields: [guildId, targetId], references: [guildId, userId])
+  @@index([guildId, createdAt])
+}
+
+model Warning {
+  id         Int      @id @default(autoincrement())
+  guildId    String
+  userId     String
+  moderatorId String
+  reason     String   @default("No reason provided.")
+  createdAt  DateTime @default(now())
+  guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  user       User     @relation("UserWarnings", fields: [guildId, userId], references: [guildId, userId])
+  @@index([guildId, userId])
+}
+
+model Ticket {
+  id        Int       @id @default(autoincrement())
+  guildId   String
+  channelId String    @unique
+  creatorId String
+  type      String
+  status    String    @default("OPEN")
+  claimedBy String?
+  createdAt DateTime  @default(now())
+  closedAt  DateTime?
+  guild     Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@index([guildId, creatorId, status])
+}
+
+model Giveaway {
+  id           Int      @id @default(autoincrement())
+  guildId      String
+  channelId    String
+  messageId    String   @unique
+  prize        String
+  winners      Int
+  endsAt       DateTime
+  requiredRoleId String?
+  status       String   @default("ACTIVE")
+  guild        Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  entries      GiveawayEntry[]
+  @@index([status, endsAt])
+}
+
+model GiveawayEntry {
+  id         Int      @id @default(autoincrement())
+  giveawayId Int
+  userId     String
+  giveaway   Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade)
+  @@unique([giveawayId, userId])
+}
+
+model AutoModRule {
+  id       Int      @id @default(autoincrement())
+  guildId  String
+  type     String
+  enabled  Boolean  @default(true)
+  action   String   @default("DELETE")
+  value    String?
+  guild    Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@unique([guildId, type])
+}
+
+model WelcomeConfig {
+  id          Int      @id @default(autoincrement())
+  guildId     String   @unique
+  channelId   String?
+  welcomeText String?
+  leaveText   String?
+  dmEnabled   Boolean  @default(false)
+  autoRoleId  String?
+  enabled     Boolean  @default(false)
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+model LevelUser {
+  id           Int      @id @default(autoincrement())
+  guildId      String
+  userId       String
+  xp           Int      @default(0)
+  level        Int      @default(0)
+  messages     Int      @default(0)
+  lastMessageAt DateTime?
+  guild        Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@unique([guildId, userId])
+  @@index([guildId, xp])
+}
+
+model ReactionRole {
+  id        Int      @id @default(autoincrement())
+  guildId   String
+  channelId String
+  messageId String   @unique
+  roleId    String
+  label     String
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+model CustomCommand {
+  id        Int      @id @default(autoincrement())
+  guildId   String
+  name      String
+  response  String
+  createdAt DateTime @default(now())
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@unique([guildId, name])
+}
+
+model LogConfig {
+  id        Int      @id @default(autoincrement())
+  guildId   String   @unique
+  memberLogId String?
+  messageLogId String?
+  moderationLogId String?
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
