@@ -15,11 +15,52 @@ const {
   rerollGiveaway,
 } = require('../services/giveaways/giveawayService');
 const { sendLog, EVENT_KEYS } = require('../services/logging/logService');
+const { MELLUNE_DEFAULT_COLOR_INT } = require('../utils/embeds');
+const {
+  handleVoiceRoomInteraction,
+} = require('../services/voice/voiceRoomService');
 
-async function createTicketFromCategory(interaction, prisma, categoryId) {
+const ticketCreationLocks = new Set();
+
+function canManageTicket(interaction, ticket) {
+  if (
+    interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
+    interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)
+  ) {
+    return true;
+  }
+  const staffRoles = Array.isArray(ticket.category?.staffRoleIds)
+    ? ticket.category.staffRoleIds
+    : [];
+  return staffRoles.some((roleId) => interaction.member?.roles?.cache?.has(roleId));
+}
+
+async function createTicketFromCategory(
+  interaction,
+  prisma,
+  categoryId,
+  panelId = null,
+) {
+  const lockKey = `${interaction.guild.id}:${interaction.user.id}:${categoryId}`;
+  if (ticketCreationLocks.has(lockKey))
+    throw new Error('Your ticket is already being created.');
+  ticketCreationLocks.add(lockKey);
+  try {
+  const panel = panelId
+    ? await prisma.ticketPanel.findFirst({
+        where: { id: panelId, guildId: interaction.guild.id, enabled: true },
+      })
+    : null;
   const category = await prisma.ticketCategory.findFirst({
-    where: { id: categoryId, guildId: interaction.guild.id, enabled: true },
+    where: {
+      id: categoryId,
+      guildId: interaction.guild.id,
+      enabled: true,
+      ...(panelId ? { panelId } : {}),
+    },
   });
+  if (panelId && !panel)
+    throw new Error('This ticket panel is no longer active.');
   if (!category)
     throw new Error('This ticket category is no longer available.');
   const existingCount = await prisma.ticket.count({
@@ -30,7 +71,8 @@ async function createTicketFromCategory(interaction, prisma, categoryId) {
       categoryId: category.id,
     },
   });
-  if (existingCount >= (category.maxOpen || 1)) {
+  const maxOpen = panel?.maxOpen || category.maxOpen || 1;
+  if (existingCount >= maxOpen) {
     const existing = await prisma.ticket.findFirst({
       where: {
         guildId: interaction.guild.id,
@@ -45,14 +87,15 @@ async function createTicketFromCategory(interaction, prisma, categoryId) {
       }`,
     );
   }
-  if (category.cooldownSeconds) {
+  const cooldownSeconds = panel?.cooldownSeconds || category.cooldownSeconds;
+  if (cooldownSeconds) {
     const recent = await prisma.ticket.findFirst({
       where: {
         guildId: interaction.guild.id,
         creatorId: interaction.user.id,
         categoryId: category.id,
         createdAt: {
-          gte: new Date(Date.now() - category.cooldownSeconds * 1000),
+          gte: new Date(Date.now() - cooldownSeconds * 1000),
         },
       },
     });
@@ -77,7 +120,7 @@ async function createTicketFromCategory(interaction, prisma, categoryId) {
         PermissionFlagsBits.ReadMessageHistory,
       ],
     },
-    ...staffRoles.map((roleId) => ({
+    ...(panel?.autoAddStaff === false ? [] : staffRoles).map((roleId) => ({
       id: roleId,
       allow: [
         PermissionFlagsBits.ViewChannel,
@@ -114,29 +157,45 @@ async function createTicketFromCategory(interaction, prisma, categoryId) {
       creatorId: interaction.user.id,
       type: category.name,
       categoryId: category.id,
+      panelId: panel?.id || category.panelId || null,
     },
   });
-  await channel.send({
-    content: `${interaction.user}`,
-    embeds: [
-      successEmbed(
-        'Ticket open',
-        category.description || 'Tell us how we can help.',
-      ),
-    ],
-    components: [
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('ticket-claim')
-          .setLabel('Claim')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId('ticket-close')
-          .setLabel('Close')
-          .setStyle(ButtonStyle.Danger),
-      ),
-    ],
-  });
+  if (panel?.autoWelcome !== false) {
+    await channel.send({
+      content: panel?.mentionCreator === false ? undefined : `${interaction.user}`,
+      allowedMentions: {
+        parse: [],
+        users: panel?.mentionCreator === false ? [] : [interaction.user.id],
+        roles: [],
+      },
+      embeds: [
+        successEmbed(
+          'Ticket open',
+          category.description || 'Tell us how we can help.',
+        ),
+      ],
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('ticket-claim')
+            .setLabel('Claim')
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId('ticket-unclaim')
+            .setLabel('Unclaim')
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId('ticket-transcript')
+            .setLabel('Transcript')
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId('ticket-close')
+            .setLabel('Close')
+            .setStyle(ButtonStyle.Danger),
+        ),
+      ],
+    });
+  }
   await sendLog(
     interaction.client,
     interaction.guild,
@@ -145,22 +204,88 @@ async function createTicketFromCategory(interaction, prisma, categoryId) {
     `${interaction.user} opened ${channel}.`,
   ).catch(() => {});
   return channel;
+  } finally {
+    ticketCreationLocks.delete(lockKey);
+  }
+}
+
+async function captureTranscript(channel) {
+  const messages = channel.messages
+    ? await channel.messages.fetch({ limit: 100 }).catch(() => null)
+    : null;
+  return {
+    capturedAt: new Date().toISOString(),
+    messages: messages
+      ? [...messages.values()]
+          .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+          .map((message) => ({
+            id: message.id,
+            authorId: message.author?.id || null,
+            author: message.author?.tag || message.author?.username || 'Unknown',
+            content: message.content || '',
+            createdAt: new Date(message.createdTimestamp).toISOString(),
+            attachments: [...(message.attachments?.values?.() || [])].map(
+              (attachment) => attachment.url,
+            ),
+          }))
+      : [],
+  };
 }
 
 async function handleComponent(interaction, prisma) {
-  const [action, rawId] = interaction.customId.split(':');
+  if (
+    interaction.customId.startsWith('voice-room:') ||
+    interaction.customId.startsWith('voice-modal:')
+  ) {
+    return handleVoiceRoomInteraction(interaction, prisma);
+  }
+  const [action, rawId, extraId] = interaction.customId.split(':');
+  if (action === 'ticket-rate') {
+    const rating = Number(extraId);
+    if (rating < 1 || rating > 5) throw new Error('Invalid ticket rating.');
+    const ticket = await prisma.ticket.findFirst({
+      where: { id: Number(rawId) },
+    });
+    if (!ticket || ticket.creatorId !== interaction.user.id)
+      throw new Error('Only the ticket creator can submit this rating.');
+    await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { rating, ratedAt: new Date() },
+    });
+    return interaction.reply({
+      content: 'Thanks for rating your ticket.',
+      ephemeral: true,
+    });
+  }
   if (interaction.customId === 'ticket-close') {
     const ticket = await prisma.ticket.findUnique({
       where: { channelId: interaction.channel.id },
+      include: { category: true },
     });
     if (!ticket)
       return interaction.reply({
         content: 'This is not an open ticket.',
         ephemeral: true,
       });
+    if (
+      ticket.status !== 'OPEN' ||
+      (ticket.creatorId !== interaction.user.id &&
+        !canManageTicket(interaction, ticket))
+    ) {
+      return interaction.reply({
+        content: 'You do not have permission to close this ticket.',
+        ephemeral: true,
+      });
+    }
+    const transcript = await captureTranscript(interaction.channel);
     await prisma.ticket.update({
       where: { id: ticket.id },
-      data: { status: 'CLOSED', closedAt: new Date() },
+      data: {
+        status: 'CLOSED',
+        closedAt: new Date(),
+        closedBy: interaction.user.id,
+        transcript,
+      },
     });
     await interaction.reply({
       embeds: [successEmbed('Ticket closed', 'This ticket is now archived.')],
@@ -168,7 +293,49 @@ async function handleComponent(interaction, prisma) {
     await interaction.channel.permissionOverwrites
       .edit(ticket.creatorId, { ViewChannel: false })
       .catch(() => {});
+    const creator = await interaction.client.users
+      .fetch(ticket.creatorId)
+      .catch(() => null);
+    if (creator) {
+      await creator
+        .send({
+          content: `How was your experience with ticket #${ticket.id}?`,
+          components: [
+            new ActionRowBuilder().addComponents(
+              ...[1, 2, 3, 4, 5].map((rating) =>
+                new ButtonBuilder()
+                  .setCustomId(`ticket-rate:${ticket.id}:${rating}`)
+                  .setLabel('⭐'.repeat(rating))
+                  .setStyle(ButtonStyle.Secondary),
+              ),
+            ),
+          ],
+        })
+        .catch(() => {});
+    }
     return;
+  }
+  if (interaction.customId === 'ticket-transcript') {
+    const ticket = await prisma.ticket.findUnique({
+      where: { channelId: interaction.channel.id },
+      include: { category: true },
+    });
+    if (!ticket || !canManageTicket(interaction, ticket))
+      return interaction.reply({
+        content: 'Only ticket staff can request a transcript.',
+        ephemeral: true,
+      });
+    const transcript = ticket.transcript || (await captureTranscript(interaction.channel));
+    if (!ticket.transcript) {
+      await prisma.ticket.update({
+        where: { id: ticket.id },
+        data: { transcript },
+      });
+    }
+    return interaction.reply({
+      content: `Transcript for ticket #${ticket.id} is stored in the dashboard (${transcript.messages.length} messages captured).`,
+      ephemeral: true,
+    });
   }
   if (
     interaction.customId === 'ticket-claim' ||
@@ -176,18 +343,45 @@ async function handleComponent(interaction, prisma) {
   ) {
     const ticket = await prisma.ticket.findUnique({
       where: { channelId: interaction.channel.id },
+      include: { category: true },
     });
     if (!ticket)
       return interaction.reply({
         content: 'This is not an open ticket.',
         ephemeral: true,
       });
-    const claimedBy =
-      interaction.customId === 'ticket-claim' ? interaction.user.id : null;
-    await prisma.ticket.update({
-      where: { id: ticket.id },
-      data: { claimedBy },
-    });
+    if (!canManageTicket(interaction, ticket))
+      return interaction.reply({
+        content: 'Only configured ticket staff can claim tickets.',
+        ephemeral: true,
+      });
+    const claiming = interaction.customId === 'ticket-claim';
+    if (claiming) {
+      const result = await prisma.ticket.updateMany({
+        where: { id: ticket.id, status: 'OPEN', claimedBy: null },
+        data: { claimedBy: interaction.user.id },
+      });
+      if (!result.count)
+        return interaction.reply({
+          content: `This ticket is already claimed by <@${ticket.claimedBy}>.`,
+          ephemeral: true,
+        });
+    } else {
+      const result = await prisma.ticket.updateMany({
+        where: {
+          id: ticket.id,
+          status: 'OPEN',
+          claimedBy: interaction.user.id,
+        },
+        data: { claimedBy: null },
+      });
+      if (!result.count)
+        return interaction.reply({
+          content: 'Only the assigned staff member can unclaim this ticket.',
+          ephemeral: true,
+        });
+    }
+    const claimedBy = claiming ? interaction.user.id : null;
     return interaction.reply({
       embeds: [
         successEmbed(
@@ -204,7 +398,8 @@ async function handleComponent(interaction, prisma) {
     const channel = await createTicketFromCategory(
       interaction,
       prisma,
-      Number(rawId),
+      Number(extraId || rawId),
+      extraId ? Number(rawId) : null,
     );
     return interaction.editReply(`Your ticket is ready: ${channel}`);
   }
@@ -244,6 +439,76 @@ async function handleComponent(interaction, prisma) {
     return interaction.reply(
       `New winners: ${winners.map((id) => `<@${id}>`).join(', ') || 'Nobody.'}`,
     );
+  }
+  if (action === 'role-panel') {
+    const entry = await prisma.reactionRole.findFirst({
+      where: {
+        id: Number(extraId),
+        guildId: interaction.guild.id,
+        panelId: Number(rawId),
+        messageId: interaction.message.id,
+        enabled: true,
+      },
+      include: { panel: { include: { entries: true } } },
+    });
+    if (!entry) throw new Error('This role panel option is no longer active.');
+    const role = await interaction.guild.roles.fetch(entry.roleId);
+    const botHighest = interaction.guild.members.me?.roles.highest.position || 0;
+    if (!role || role.managed || role.position >= botHighest)
+      throw new Error('The bot cannot manage that role.');
+    if (interaction.member.roles.cache.has(role.id)) {
+      await interaction.member.roles.remove(role, 'Mellune role panel');
+      return interaction.reply({
+        content: `Removed **${role.name}**.`,
+        ephemeral: true,
+      });
+    }
+    if (entry.panel.exclusiveMode === 'EXCLUSIVE') {
+      const otherRoleIds = entry.panel.entries
+        .filter((item) => item.id !== entry.id)
+        .map((item) => item.roleId);
+      for (const otherRoleId of otherRoleIds) {
+        if (interaction.member.roles.cache.has(otherRoleId))
+          await interaction.member.roles.remove(otherRoleId, 'Exclusive Mellune role panel');
+      }
+    }
+    await interaction.member.roles.add(role, 'Mellune role panel');
+    return interaction.reply({
+      content: `Added **${role.name}**.`,
+      ephemeral: true,
+    });
+  }
+  if (action === 'role-select') {
+    const panel = await prisma.reactionRolePanel.findFirst({
+      where: {
+        id: Number(rawId),
+        guildId: interaction.guild.id,
+        messageId: interaction.message.id,
+        enabled: true,
+      },
+      include: { entries: { where: { enabled: true } } },
+    });
+    if (!panel) throw new Error('This role panel is no longer active.');
+    const selected = new Set((interaction.values || []).map(Number));
+    const chosen = panel.entries.filter((entry) => selected.has(entry.id));
+    if (panel.exclusiveMode === 'EXCLUSIVE' && chosen.length > 1)
+      throw new Error('Choose only one role in this menu.');
+    const botHighest = interaction.guild.members.me?.roles.highest.position || 0;
+    for (const entry of panel.entries) {
+      const role = await interaction.guild.roles.fetch(entry.roleId);
+      if (!role || role.managed || role.position >= botHighest)
+        throw new Error(`The bot cannot manage ${entry.label}.`);
+      if (selected.has(entry.id)) {
+        if (!interaction.member.roles.cache.has(role.id))
+          await interaction.member.roles.add(role, 'Mellune role menu');
+      } else if (interaction.member.roles.cache.has(role.id)) {
+        await interaction.member.roles.remove(role, 'Mellune role menu');
+      }
+    }
+    return interaction.reply({
+      content: 'Your role preferences were updated.',
+      ephemeral: true,
+    });
   }
   if (action === 'role-toggle') {
     const panel = await prisma.reactionRole.findFirst({
@@ -336,7 +601,7 @@ async function handleComponent(interaction, prisma) {
       await destination.send({
         embeds: [
           new EmbedBuilder()
-            .setColor('#b9a7ff')
+            .setColor(MELLUNE_DEFAULT_COLOR_INT)
             .setTitle(`Application: ${form.title}`)
             .setDescription(
               `From ${interaction.user} · Submission #${submission.id}`,
@@ -405,7 +670,11 @@ function attachInteractionHandler(client, commands, prisma) {
         await command.execute(interaction, { prisma, client });
         return;
       }
-      if (interaction.isButton() || interaction.isModalSubmit()) {
+      if (
+        interaction.isButton() ||
+        interaction.isModalSubmit() ||
+        interaction.isStringSelectMenu()
+      ) {
         await handleComponent(interaction, prisma);
       }
     } catch (error) {

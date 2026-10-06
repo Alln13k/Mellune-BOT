@@ -4,13 +4,14 @@ const {
   ButtonStyle,
   EmbedBuilder,
 } = require('discord.js');
+const { MELLUNE_DEFAULT_COLOR_INT } = require('../../utils/embeds');
 
 async function startGiveaway(client, giveaway) {
   const channel = await client.channels.fetch(giveaway.channelId);
   if (!channel?.isTextBased())
     throw new Error('Giveaway channel is not text-based.');
   const embed = new EmbedBuilder()
-    .setColor('#b9a7ff')
+    .setColor(MELLUNE_DEFAULT_COLOR_INT)
     .setTitle(`🎁 ${giveaway.prize}`)
     .setDescription(
       `Click **Enter** to participate.\nEnds <t:${Math.floor(giveaway.endsAt.getTime() / 1000)}:R>\nWinners: **${giveaway.winners}**`,

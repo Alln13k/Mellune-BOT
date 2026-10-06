@@ -1,12 +1,16 @@
-const { ChannelType, PermissionFlagsBits } = require('discord.js');
+const { createVoiceRoom } = require('./voiceRoomService');
 
-const temporaryChannels = new Set();
+const roomCreationLocks = new Set();
 
 function formatName(format, member) {
-  return (format || "{username}'s room")
+  const name = (format || "{username}'s room")
     .replace(/\{username\}/gi, member.user.username)
     .replace(/\{displayname\}/gi, member.displayName)
+    .replace(/\{userid\}/gi, member.user.id)
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
+    .trim()
     .slice(0, 100);
+  return name || `${member.user.username}'s room`.slice(0, 100);
 }
 
 async function handleVoiceStateUpdate(oldState, newState, prisma) {
@@ -17,65 +21,80 @@ async function handleVoiceStateUpdate(oldState, newState, prisma) {
   });
   if (!config?.enabled) return;
 
-  if (newState.channelId === config.triggerChannelId) {
-    const parent = config.categoryId
-      ? await guild.channels.fetch(config.categoryId).catch(() => null)
-      : null;
-    const channel = await guild.channels.create({
-      name: formatName(config.nameFormat, newState.member),
-      type: ChannelType.GuildVoice,
-      parent:
-        parent?.type === ChannelType.GuildCategory ? parent.id : undefined,
-      userLimit: Math.max(0, Math.min(99, config.userLimit || 0)),
-      permissionOverwrites: [
-        {
-          id: newState.member.id,
-          allow: [
-            PermissionFlagsBits.Connect,
-            PermissionFlagsBits.ManageChannels,
-            PermissionFlagsBits.MoveMembers,
-          ],
-        },
-      ],
-    });
-    temporaryChannels.add(channel.id);
-    await newState.setChannel(channel).catch(async () => {
-      await channel
-        .delete('Could not move member into temporary channel')
-        .catch(() => {});
-    });
+  if (
+    newState.channelId === config.triggerChannelId &&
+    oldState.channelId !== newState.channelId &&
+    !roomCreationLocks.has(newState.member.id)
+  ) {
+    roomCreationLocks.add(newState.member.id);
+    try {
+      await createVoiceRoom({ newState, prisma, config, formatName });
+    } finally {
+      roomCreationLocks.delete(newState.member.id);
+    }
   }
 
   const oldChannel = oldState.channel;
-  if (
-    oldChannel &&
-    temporaryChannels.has(oldChannel.id) &&
-    oldChannel.members.size === 0
-  ) {
-    temporaryChannels.delete(oldChannel.id);
-    await oldChannel.delete('Temporary voice channel is empty').catch(() => {});
+  if (oldChannel && oldChannel.members.size === 0 && config.autoDelete !== false) {
+    const room = await prisma.temporaryVoiceRoom.findUnique({
+      where: { channelId: oldChannel.id },
+    });
+    if (room) {
+      await prisma.temporaryVoiceRoom
+        .delete({ where: { id: room.id } })
+        .catch(() => {});
+      if (room.textChannelId) {
+        const textChannel = await guild.channels
+          .fetch(room.textChannelId)
+          .catch(() => null);
+        if (textChannel)
+          await textChannel.delete('Temporary voice room is empty').catch(() => {});
+      }
+      await oldChannel.delete('Temporary voice channel is empty').catch(() => {});
+    }
   }
 }
 
 async function cleanupTemporaryChannels(client) {
   for (const guild of client.guilds.cache.values()) {
-    const config = await client.prisma.temporaryVoiceConfig
-      .findUnique({
-        where: { guildId: guild.id },
-      })
-      .catch(() => null);
-    if (!config) continue;
-    const channels = guild.channels.cache.filter(
-      (channel) =>
-        channel.type === ChannelType.GuildVoice &&
-        config.categoryId &&
-        channel.parentId === config.categoryId &&
-        channel.members.size === 0,
-    );
-    for (const channel of channels.values()) {
-      await channel
-        .delete('Cleaning empty temporary voice channel')
-        .catch(() => {});
+    const rooms = await client.prisma.temporaryVoiceRoom
+      .findMany({ where: { guildId: guild.id } })
+      .catch(() => []);
+    const config = await client.prisma.temporaryVoiceConfig.findUnique({
+      where: { guildId: guild.id },
+    });
+    for (const room of rooms) {
+      const channel =
+        guild.channels.cache.get(room.channelId) ||
+        (await guild.channels.fetch(room.channelId).catch(() => null));
+      if (!channel) {
+        await client.prisma.temporaryVoiceRoom
+          .delete({ where: { id: room.id } })
+          .catch(() => {});
+        if (room.textChannelId) {
+          const textChannel = await guild.channels
+            .fetch(room.textChannelId)
+            .catch(() => null);
+          if (textChannel)
+            await textChannel.delete('Cleaning orphaned voice room').catch(() => {});
+        }
+        continue;
+      }
+      if (config?.autoDelete !== false && channel.members.size === 0) {
+        await client.prisma.temporaryVoiceRoom
+          .delete({ where: { id: room.id } })
+          .catch(() => {});
+        if (room.textChannelId) {
+          const textChannel = await guild.channels
+            .fetch(room.textChannelId)
+            .catch(() => null);
+          if (textChannel)
+            await textChannel.delete('Temporary voice room is empty').catch(() => {});
+        }
+        await channel
+          .delete('Cleaning empty temporary voice channel')
+          .catch(() => {});
+      }
     }
   }
 }

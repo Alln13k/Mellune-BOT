@@ -1,4 +1,5 @@
 const { buildEmbed } = require('../embedService');
+const { MELLUNE_DEFAULT_COLOR_INT } = require('../../utils/embeds');
 const { sendGreetingTest } = require('../welcome/welcomeService');
 const { publishTicketPanel } = require('../ticket/ticketPanelService');
 const {
@@ -65,7 +66,12 @@ async function executeJob(client, job) {
     return sendGreetingTest(client, job.guildId, payload.userId, payload.kind);
   }
   if (job.type === 'PUBLISH_TICKET_PANEL') {
-    return publishTicketPanel(client, job.guildId, payload.channelId);
+    return publishTicketPanel(
+      client,
+      job.guildId,
+      payload.channelId,
+      payload.panelId,
+    );
   }
   if (job.type === 'ROLE_ASSIGN' || job.type === 'ROLE_REMOVE') {
     const guild = await client.guilds.fetch(job.guildId);
@@ -115,7 +121,7 @@ async function executeJob(client, job) {
     const message = await sendToChannel(client, payload.channelId, {
       embeds: [
         new EmbedBuilder()
-          .setColor('#b9a7ff')
+          .setColor(MELLUNE_DEFAULT_COLOR_INT)
           .setTitle(payload.title)
           .setDescription(payload.description),
       ],
@@ -151,7 +157,7 @@ async function executeJob(client, job) {
     const message = await sendToChannel(client, form.destinationChannelId, {
       embeds: [
         new EmbedBuilder()
-          .setColor('#b9a7ff')
+          .setColor(MELLUNE_DEFAULT_COLOR_INT)
           .setTitle(form.title)
           .setDescription(form.description),
       ],
@@ -204,6 +210,94 @@ async function executeJob(client, job) {
     });
     return message;
   }
+  if (job.type === 'SEND_REACTION_ROLE_PANEL') {
+    const {
+      ActionRowBuilder,
+      ButtonBuilder,
+      ButtonStyle,
+      StringSelectMenuBuilder,
+    } = require('discord.js');
+    const panel = await client.prisma.reactionRolePanel.findFirst({
+      where: { id: payload.panelId, guildId: job.guildId, enabled: true },
+      include: { entries: { where: { enabled: true }, orderBy: { id: 'asc' } } },
+    });
+    if (!panel) throw new Error('Role panel is no longer active.');
+    const channel = await client.channels.fetch(panel.channelId);
+    if (!channel?.isTextBased()) throw new Error('Role panel channel is invalid.');
+    const embed = buildEmbed({
+      title: panel.title,
+      description: panel.description,
+      color: panel.color,
+      timestamp: panel.useTimestamp,
+      author: panel.authorName
+        ? {
+            name: panel.authorName,
+            iconUrl: panel.authorIconUrl,
+          }
+        : null,
+      thumbnail: panel.thumbnailUrl ? { url: panel.thumbnailUrl } : null,
+      image: panel.imageUrl ? { url: panel.imageUrl } : null,
+      footer: panel.footer
+        ? { text: panel.footer, iconUrl: panel.footerIconUrl }
+        : null,
+    });
+    const rows = [];
+    if (panel.mode === 'SELECT') {
+      rows.push(
+        new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(`role-select:${panel.id}`)
+            .setPlaceholder('Choose your roles')
+            .setMinValues(0)
+            .setMaxValues(panel.exclusiveMode === 'EXCLUSIVE' ? 1 : Math.min(25, panel.entries.length))
+            .addOptions(
+              panel.entries.slice(0, 25).map((entry) => ({
+                label: entry.label.slice(0, 100),
+                value: String(entry.id),
+                description: entry.description?.slice(0, 100),
+                emoji: entry.emoji || undefined,
+              })),
+            ),
+        ),
+      );
+    } else if (panel.mode === 'BUTTON') {
+      for (let index = 0; index < panel.entries.length; index += 5) {
+        rows.push(
+          new ActionRowBuilder().addComponents(
+            ...panel.entries.slice(index, index + 5).map((entry) =>
+              new ButtonBuilder()
+                .setCustomId(`role-panel:${panel.id}:${entry.id}`)
+                .setLabel(entry.label.slice(0, 80))
+                .setEmoji(entry.emoji || '🔘')
+                .setStyle(ButtonStyle.Secondary),
+            ),
+          ),
+        );
+      }
+    }
+    let message = null;
+    if (panel.messageId && channel.messages) {
+      message = await channel.messages
+        .fetch(panel.messageId)
+        .then((existing) => existing.edit({ embeds: [embed], components: rows }))
+        .catch(() => null);
+    }
+    message ||= await channel.send({ embeds: [embed], components: rows });
+    if (panel.mode === 'REACTION') {
+      for (const entry of panel.entries) {
+        await message.react(entry.emoji).catch(() => {});
+      }
+    }
+    await client.prisma.reactionRolePanel.update({
+      where: { id: panel.id },
+      data: { messageId: message.id },
+    });
+    await client.prisma.reactionRole.updateMany({
+      where: { panelId: panel.id },
+      data: { channelId: channel.id, messageId: message.id },
+    });
+    return message;
+  }
   if (job.type === 'SEND_ROLE_PANEL') {
     const {
       ActionRowBuilder,
@@ -214,7 +308,7 @@ async function executeJob(client, job) {
     const message = await sendToChannel(client, payload.channelId, {
       embeds: [
         new EmbedBuilder()
-          .setColor('#b9a7ff')
+          .setColor(MELLUNE_DEFAULT_COLOR_INT)
           .setTitle(payload.title || 'Choose your roles')
           .setDescription(
             payload.description || 'Select a button to update your roles.',

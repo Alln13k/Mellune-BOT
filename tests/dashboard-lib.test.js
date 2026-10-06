@@ -60,7 +60,7 @@ test('validators sanitise untrusted input', () => {
   assert.equal(validate.snowflake('abc'), null);
   assert.equal(validate.snowflake(42), null);
   assert.equal(validate.color('#AABBCC'), '#AABBCC');
-  assert.equal(validate.color('red'), '#b9a7ff');
+  assert.equal(validate.color('red'), '#3C527F');
   assert.equal(validate.nullableText('   ', 10), null);
   assert.equal(validate.text('abcdef', 3), 'abc');
   assert.equal(validate.bool('true'), false);

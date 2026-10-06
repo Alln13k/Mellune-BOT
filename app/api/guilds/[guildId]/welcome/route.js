@@ -1,4 +1,5 @@
 const { prisma } = require('../../../../../database/client');
+const { MELLUNE_DEFAULT_EMBED_COLOR } = require('../../../../../lib/constants');
 const {
   featureRoute,
   getResources,
@@ -13,7 +14,7 @@ const DEFAULTS = {
   channelId: null,
   title: 'Welcome to {server}',
   description: 'Welcome {user}! You are member #{memberCount}.',
-  color: '#b9a7ff',
+  color: MELLUNE_DEFAULT_EMBED_COLOR,
   footer: null,
   thumbnailUrl: null,
   imageUrl: null,
@@ -54,7 +55,7 @@ const POST = featureRoute(async ({ request, guildId, session }) => {
     channelId: snowflake(body.channelId),
     title: text(body.title, 256, DEFAULTS.title),
     description: text(body.description, 4096, DEFAULTS.description),
-    color: body.color || '#b9a7ff',
+    color: body.color || MELLUNE_DEFAULT_EMBED_COLOR,
     footer: text(body.footer, 2048) || null,
     thumbnailUrl: body.thumbnailUrl
       ? String(body.thumbnailUrl).slice(0, 500)

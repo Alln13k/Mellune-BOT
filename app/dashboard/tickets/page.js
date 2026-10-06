@@ -17,12 +17,22 @@ import {
 } from '../../../components/dashboard/ui';
 
 const DEFAULT_PANEL = {
+  panelKey: 'support',
+  name: 'Support',
   channelId: '',
   title: 'Need a hand?',
   description: 'Choose a category below and our team will be with you shortly.',
-  color: '#b9a7ff',
+  color: '#3C527F',
   emoji: '☾',
   footer: '',
+  buttonLabel: 'Open ticket',
+  buttonStyle: 'SECONDARY',
+  buttonEmoji: '🎫',
+  maxOpen: 1,
+  cooldownSeconds: 0,
+  mentionCreator: true,
+  autoWelcome: true,
+  autoAddStaff: true,
   enabled: true,
 };
 
@@ -30,7 +40,7 @@ const blankCategory = () => ({
   name: 'Support',
   description: 'Get help from the Mellune team.',
   emoji: '✦',
-  color: '#b9a7ff',
+  color: '#3C527F',
   discordCategoryId: '',
   cooldownSeconds: 0,
   maxOpen: 1,
@@ -42,15 +52,20 @@ export default function TicketBuilderPage() {
   const { data, error, reload } = useGuildData('tickets');
   const [panel, setPanel] = useState(DEFAULT_PANEL);
   const [categories, setCategories] = useState([blankCategory()]);
+  const [panels, setPanels] = useState([]);
+  const [ticketFilter, setTicketFilter] = useState('');
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!data) return;
-    if (data.panel) setPanel({ ...DEFAULT_PANEL, ...data.panel });
+    const savedPanels = data.panels || (data.panel ? [data.panel] : []);
+    setPanels(savedPanels);
+    const selected = savedPanels[0];
+    if (selected) setPanel({ ...DEFAULT_PANEL, ...selected });
     setCategories(
-      data.categories.length
-        ? data.categories.map((category) => ({
+      selected?.categories?.length
+        ? selected.categories.map((category) => ({
             ...category,
             discordCategoryId: category.discordCategoryId ?? '',
           }))
@@ -77,6 +92,7 @@ export default function TicketBuilderPage() {
         method: 'POST',
         body: JSON.stringify({
           ...panel,
+          id: panel.id || undefined,
           publish,
           categories: categories.map((category) => ({
             ...category,
@@ -84,19 +100,59 @@ export default function TicketBuilderPage() {
           })),
         }),
       });
+      setPanel((current) => ({ ...current, ...result }));
       setCategories(
-        result.categories.map((category) => ({
+        (result.categories || []).map((category) => ({
           ...category,
           discordCategoryId: category.discordCategoryId ?? '',
         })),
       );
       notify('Ticket panel saved.');
+      await reload();
     } catch (requestError) {
       notify(requestError.message, 'error');
     } finally {
       setSaving(false);
     }
   }
+
+  async function removePanel() {
+    if (!panel.id || !window.confirm(`Delete the ${panel.name} panel?`)) return;
+    try {
+      await guildApi(guild.id, 'tickets', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete', id: panel.id }),
+      });
+      notify('Ticket panel deleted.');
+      await reload();
+    } catch (requestError) {
+      notify(requestError.message, 'error');
+    }
+  }
+
+  function selectPanel(id) {
+    const selected = panels.find((item) => item.id === Number(id));
+    if (!selected) return;
+    setPanel({ ...DEFAULT_PANEL, ...selected });
+    setCategories(
+      selected.categories?.map((category) => ({
+        ...category,
+        discordCategoryId: category.discordCategoryId ?? '',
+      })) || [blankCategory()],
+    );
+  }
+
+  function newPanel() {
+    const key = `panel-${panels.length + 1}`;
+    setPanel({ ...DEFAULT_PANEL, panelKey: key, name: `Panel ${panels.length + 1}`, id: undefined });
+    setCategories([blankCategory()]);
+  }
+
+  const tickets = (data?.tickets || []).filter((ticket) =>
+    `${ticket.id} ${ticket.creatorId} ${ticket.type} ${ticket.status}`
+      .toLowerCase()
+      .includes(ticketFilter.toLowerCase()),
+  );
 
   return (
     <>
@@ -106,6 +162,21 @@ export default function TicketBuilderPage() {
         description="Design the panel your members use to open a conversation."
         actions={
           <div className="form-row">
+            <select
+              value={panel.id || ''}
+              onChange={(event) => selectPanel(event.target.value)}
+              disabled={!ready || !panels.length}
+              aria-label="Select ticket panel"
+            >
+              {panels.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <button type="button" className="button button-ghost" onClick={newPanel}>
+              <Plus size={16} aria-hidden="true" /> New panel
+            </button>
             <button
               type="button"
               className="button"
@@ -122,6 +193,14 @@ export default function TicketBuilderPage() {
               disabled={!ready || saving || !panel.channelId}
             >
               <Send size={16} aria-hidden="true" /> Publish panel
+            </button>
+            <button
+              type="button"
+              className="button button-ghost"
+              onClick={removePanel}
+              disabled={!ready || saving || !panel.id}
+            >
+              <Trash2 size={16} aria-hidden="true" /> Delete
             </button>
           </div>
         }
@@ -162,6 +241,22 @@ export default function TicketBuilderPage() {
                   ))}
                 </select>
               </Field>
+              <div className="form-row">
+                <Field label="Panel name">
+                  <input
+                    value={panel.name}
+                    maxLength={80}
+                    onChange={setPanelField('name')}
+                  />
+                </Field>
+                <Field label="Internal key">
+                  <input
+                    value={panel.panelKey}
+                    maxLength={60}
+                    onChange={setPanelField('panelKey')}
+                  />
+                </Field>
+              </div>
               <Field label="Title">
                 <input
                   value={panel.title}
@@ -200,6 +295,42 @@ export default function TicketBuilderPage() {
                   onChange={setPanelField('footer')}
                 />
               </Field>
+              <div className="form-row">
+                <Field label="Button label">
+                  <input
+                    value={panel.buttonLabel}
+                    maxLength={80}
+                    onChange={setPanelField('buttonLabel')}
+                  />
+                </Field>
+                <Field label="Button emoji">
+                  <input
+                    value={panel.buttonEmoji || ''}
+                    maxLength={16}
+                    onChange={setPanelField('buttonEmoji')}
+                  />
+                </Field>
+              </div>
+              <div className="form-row">
+                <Field label="Max open tickets">
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={panel.maxOpen}
+                    onChange={setPanelField('maxOpen')}
+                  />
+                </Field>
+                <Field label="Cooldown (seconds)">
+                  <input
+                    type="number"
+                    min="0"
+                    max="86400"
+                    value={panel.cooldownSeconds}
+                    onChange={setPanelField('cooldownSeconds')}
+                  />
+                </Field>
+              </div>
             </Card>
 
             <Card
@@ -292,7 +423,7 @@ export default function TicketBuilderPage() {
                     <Field label="Colour">
                       <input
                         type="color"
-                        value={category.color || '#b9a7ff'}
+                        value={category.color || '#3C527F'}
                         onChange={(event) =>
                           updateCategory(index, 'color', event.target.value)
                         }
@@ -362,6 +493,63 @@ export default function TicketBuilderPage() {
                 </div>
               ))}
             </div>
+          </Card>
+          <Card
+            title="Ticket activity"
+            description="Live database records, limited to the latest 100 tickets."
+            action={
+              <input
+                aria-label="Search tickets"
+                placeholder="Search tickets…"
+                value={ticketFilter}
+                onChange={(event) => setTicketFilter(event.target.value)}
+              />
+            }
+          >
+            <div className="stats">
+              <div className="card stat">
+                <strong>{data?.stats?.total || 0}</strong>
+                <span>Total</span>
+              </div>
+              <div className="card stat">
+                <strong>{data?.stats?.open || 0}</strong>
+                <span>Open</span>
+              </div>
+              <div className="card stat">
+                <strong>{data?.stats?.closed || 0}</strong>
+                <span>Closed</span>
+              </div>
+              <div className="card stat">
+                <strong>
+                  {data?.stats?.averageRating
+                    ? Number(data.stats.averageRating).toFixed(1)
+                    : '—'}
+                </strong>
+                <span>Avg. rating</span>
+              </div>
+            </div>
+            {tickets.length ? (
+              <ul className="list">
+                {tickets.map((ticket) => (
+                  <li key={ticket.id}>
+                    <div className="list-main">
+                      <strong>
+                        #{ticket.id} · {ticket.type} · {ticket.status}
+                      </strong>
+                      <span className="subtle">
+                        {ticket.creatorId}
+                        {ticket.claimedBy ? ` · claimed by ${ticket.claimedBy}` : ''}
+                      </span>
+                    </div>
+                    <time className="subtle">
+                      {new Date(ticket.createdAt).toLocaleDateString()}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="subtle">No tickets match this search.</div>
+            )}
           </Card>
         </>
       )}

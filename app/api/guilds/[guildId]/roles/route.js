@@ -1,4 +1,5 @@
 const { prisma } = require('../../../../../database/client');
+const { color } = require('../../../../../lib/validate');
 const {
   featureRoute,
   getResources,
@@ -12,7 +13,11 @@ const {
 const GET = featureRoute(async ({ guildId }) => {
   const [resources, panels] = await Promise.all([
     getResources(guildId),
-    prisma.reactionRole.findMany({ where: { guildId } }),
+    prisma.reactionRolePanel.findMany({
+      where: { guildId },
+      include: { entries: { orderBy: { id: 'asc' } } },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
   return response({
     roles: resources.roles,
@@ -39,28 +44,81 @@ const POST = featureRoute(async ({ request, guildId }) => {
   }
   if (action === 'panel') {
     const channelId = snowflake(body.channelId);
-    const roles = Array.isArray(body.roles)
-      ? body.roles
-          .slice(0, 5)
+    const rawEntries = Array.isArray(body.entries) ? body.entries : body.roles;
+    const entries = Array.isArray(rawEntries)
+      ? rawEntries
+          .slice(0, 25)
           .map((role) => ({
             roleId: snowflake(role.roleId),
             label: text(role.label, 80, 'Role'),
+            emoji: text(role.emoji, 16, '🔘'),
+            description: text(role.description, 200) || null,
+            mode: ['BUTTON', 'REACTION', 'SELECT'].includes(role.mode)
+              ? role.mode
+              : body.mode || 'BUTTON',
+            exclusiveGroup: text(role.exclusiveGroup, 80) || null,
+            enabled: role.enabled !== false,
           }))
-          .filter((role) => role.roleId)
+          .filter((entry) => entry.roleId && entry.enabled)
       : [];
-    if (!channelId || !roles.length)
-      throw new Error('Choose a channel and at least one role.');
-    const job = await queueJob(prisma, guildId, 'SEND_ROLE_PANEL', {
+    if (!channelId || !entries.length)
+      throw new Error('Choose a channel and at least one role option.');
+    const panelData = {
+      name: text(body.name, 80, 'Role menu'),
       channelId,
-      title: text(body.title, 100, 'Choose your roles'),
+      mode: ['BUTTON', 'REACTION', 'SELECT'].includes(body.mode)
+        ? body.mode
+        : 'BUTTON',
+      title: text(body.title, 256, 'Choose your roles'),
       description: text(
         body.description,
-        1000,
-        'Select a button to update your roles.',
+        4096,
+        'Select the roles that apply to you.',
       ),
-      roles,
+      color: color(body.color),
+      authorName: text(body.authorName, 256) || null,
+      authorIconUrl: text(body.authorIconUrl, 500) || null,
+      thumbnailUrl: text(body.thumbnailUrl, 500) || null,
+      imageUrl: text(body.imageUrl, 500) || null,
+      footer: text(body.footer, 2048) || null,
+      footerIconUrl: text(body.footerIconUrl, 500) || null,
+      useTimestamp: body.useTimestamp === true,
+      exclusiveMode: body.exclusiveMode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'MULTIPLE',
+      enabled: body.enabled !== false,
+    };
+    const panel = await prisma.$transaction(async (transaction) => {
+      const existing = body.panelId
+        ? await transaction.reactionRolePanel.findFirst({
+            where: { id: Number(body.panelId), guildId },
+          })
+        : null;
+      const saved = existing
+        ? await transaction.reactionRolePanel.update({
+            where: { id: existing.id },
+            data: panelData,
+          })
+        : await transaction.reactionRolePanel.create({
+            data: { guildId, ...panelData },
+          });
+      await transaction.reactionRole.deleteMany({ where: { panelId: saved.id } });
+      await transaction.reactionRole.createMany({
+        data: entries.map((entry) => ({
+          guildId,
+          panelId: saved.id,
+          channelId,
+          messageId: null,
+          ...entry,
+        })),
+      });
+      return transaction.reactionRolePanel.findUnique({
+        where: { id: saved.id },
+        include: { entries: true },
+      });
     });
-    return response({ queued: true, jobId: job.id }, 202);
+    const job = await queueJob(prisma, guildId, 'SEND_REACTION_ROLE_PANEL', {
+      panelId: panel.id,
+    });
+    return response({ panel, queued: true, jobId: job.id }, 202);
   }
   if (action === 'edit' || action === 'assign' || action === 'remove') {
     const roleId = snowflake(body.roleId);
@@ -88,9 +146,15 @@ const POST = featureRoute(async ({ request, guildId }) => {
     return response({ queued: true, jobId: job.id }, 202);
   }
   if (action === 'delete-panel') {
-    await prisma.reactionRole.deleteMany({
-      where: { guildId, messageId: text(body.messageId, 32) },
-    });
+    if (body.panelId) {
+      await prisma.reactionRolePanel.deleteMany({
+        where: { id: Number(body.panelId), guildId },
+      });
+    } else {
+      await prisma.reactionRole.deleteMany({
+        where: { guildId, messageId: text(body.messageId, 32) },
+      });
+    }
     return response({ ok: true });
   }
   throw new Error('Unsupported role action.');
