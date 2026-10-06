@@ -28,6 +28,22 @@ test('Supabase project metadata points at Mellune DB', () => {
   assert.equal(project.url, 'https://qjhvapvcbyabbsgvoley.supabase.co');
 });
 
+test('Prisma schema uses PostgreSQL through DATABASE_URL', () => {
+  const schema = require('node:fs').readFileSync(
+    path.join(__dirname, '..', 'prisma', 'schema.prisma'),
+    'utf8',
+  );
+  const lock = require('node:fs').readFileSync(
+    path.join(__dirname, '..', 'prisma', 'migrations', 'migration_lock.toml'),
+    'utf8',
+  );
+  assert.match(schema, /provider\s*=\s*"postgresql"/);
+  assert.doesNotMatch(schema, /provider\s*=\s*"sqlite"/);
+  assert.match(schema, /url\s+=\s+env\("DATABASE_URL"\)/);
+  assert.doesNotMatch(schema, /directUrl/);
+  assert.match(lock, /provider\s*=\s*"postgresql"/);
+});
+
 test('bot entry file is index.js', () => {
   const pkg = require('../package.json');
   assert.equal(pkg.main, 'index.js');

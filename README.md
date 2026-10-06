@@ -40,12 +40,7 @@ The bot is linked to the existing project **Mellune DB**:
 
 The Mellune tables (guilds, warnings, tickets, levels, …) are already created there, with Row Level Security enabled so the public `anon` key cannot read bot data. Prisma talks to Postgres with the database password.
 
-Open **Project Settings → Database → Connect** and copy:
-
-1. **Transaction pooler** (port `6543`) into `DATABASE_URL`. Add `?pgbouncer=true` if missing.
-2. **Session pooler** (port `5432`) into `DIRECT_URL`.
-
-Use user `postgres.qjhvapvcbyabbsgvoley` and the database password you set when the project was created.
+Prisma uses only `DATABASE_URL`. Put your external PostgreSQL URL there (`postgresql://...`). You do not need SQLite, and you do not need to add `DIRECT_URL` to start the bot.
 
 ```env
 DISCORD_TOKEN=your_bot_token
@@ -54,8 +49,7 @@ DEV_GUILD_ID=your_test_server_id
 SUPABASE_PROJECT_REF=qjhvapvcbyabbsgvoley
 SUPABASE_URL=https://qjhvapvcbyabbsgvoley.supabase.co
 SUPABASE_ANON_KEY=your_anon_or_publishable_key
-DATABASE_URL="postgres://postgres.qjhvapvcbyabbsgvoley:PASSWORD@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgres://postgres.qjhvapvcbyabbsgvoley:PASSWORD@aws-0-eu-west-1.pooler.supabase.com:5432/postgres"
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE"
 ```
 
 Never share these values, and never commit `.env`.
@@ -104,12 +98,12 @@ npx prettier --check .
 
 ## Troubleshooting
 
-**Missing environment variables**: copy `.env.example` to `.env` and fill `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DATABASE_URL`, and `DIRECT_URL`. `DEV_GUILD_ID` is required by `npm run deploy:guild`.
+**Missing environment variables**: copy `.env.example` to `.env` and fill `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, and `DATABASE_URL` (a `postgresql://` URL). `DEV_GUILD_ID` is required by `npm run deploy:guild`.
 
 **Commands do not appear**: invite the bot with `applications.commands`, then run `npm run deploy:guild`.
 
 **Can't reach database / IPv6 errors**: use the **pooler** URLs from **Connect**, not the direct `db.<project>.supabase.co` host, unless your network supports IPv6.
 
-**Prisma migrate fails**: `DIRECT_URL` must be the session pooler (`:5432`) without `pgbouncer=true`. `DATABASE_URL` is the transaction pooler (`:6543`) with `pgbouncer=true`.
+**Prisma says the URL must start with `file:`**: the schema is still SQLite. Update the files so `prisma/schema.prisma` has `provider = "postgresql"`, then run `npx prisma generate`.
 
-**Wrong password**: reset the database password in Supabase **Project Settings → Database**, then update both URLs.
+**Wrong password**: reset the database password in your Postgres host, then update `DATABASE_URL` only.
