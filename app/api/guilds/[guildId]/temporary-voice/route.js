@@ -14,6 +14,10 @@ const DEFAULTS = {
   categoryId: null,
   nameFormat: "{username}'s room",
   userLimit: 0,
+  defaultPrivacy: 'PUBLIC',
+  maxRooms: 0,
+  autoDelete: true,
+  staffRoleIds: [],
 };
 
 const GET = featureRoute(async ({ guildId }) => {
@@ -35,6 +39,12 @@ const POST = featureRoute(async ({ request, guildId }) => {
     categoryId: snowflake(body.categoryId),
     nameFormat: text(body.nameFormat, 100, DEFAULTS.nameFormat),
     userLimit: Math.min(99, Math.max(0, Number(body.userLimit) || 0)),
+    defaultPrivacy: body.defaultPrivacy === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC',
+    maxRooms: Math.min(100, Math.max(0, Number(body.maxRooms) || 0)),
+    autoDelete: body.autoDelete !== false,
+    staffRoleIds: Array.isArray(body.staffRoleIds)
+      ? body.staffRoleIds.map(snowflake).filter(Boolean).slice(0, 20)
+      : [],
   };
   const config = await prisma.temporaryVoiceConfig.upsert({
     where: { guildId },

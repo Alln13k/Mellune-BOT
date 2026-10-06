@@ -1,4 +1,5 @@
 const { buildEmbed, memberContext } = require('../embedService');
+const { MELLUNE_DEFAULT_EMBED_COLOR } = require('../../lib/constants');
 const { sendLog, EVENT_KEYS } = require('../logging/logService');
 const { ensureGuild, ensureUser } = require('../guildService');
 
@@ -7,7 +8,7 @@ const DEFAULT_GREETING = {
   channelId: null,
   title: null,
   description: null,
-  color: '#b9a7ff',
+  color: MELLUNE_DEFAULT_EMBED_COLOR,
   footer: null,
   thumbnailUrl: null,
   imageUrl: null,

@@ -3,7 +3,8 @@ const { snowflake } = require('../../../../../lib/validate');
 const { prisma } = require('../../../../../database/client');
 const { guildRoute, badRequest } = require('../../../../../lib/guildRoute');
 const { guildResources } = require('../../../../../lib/discordRest');
-const { queueJob } = require('../../../../../lib/featureApi');
+const { cleanEmbed, queueJob } = require('../../../../../lib/featureApi');
+const { MELLUNE_DEFAULT_EMBED_COLOR } = require('../../../../../lib/constants');
 
 const DEFAULT_CATEGORIES = [
   {
@@ -44,7 +45,7 @@ function cleanCategory(category) {
     staffRoleIds: Array.isArray(category.staffRoleIds)
       ? category.staffRoleIds.map(snowflake).filter(Boolean).slice(0, 20)
       : [],
-    color: cleanColor(category.color, '#b9a7ff'),
+    color: cleanColor(category.color, MELLUNE_DEFAULT_EMBED_COLOR),
     cooldownSeconds: Math.min(
       86400,
       Math.max(0, Number.parseInt(category.cooldownSeconds, 10) || 0),
@@ -58,17 +59,23 @@ function cleanCategory(category) {
 }
 
 const GET = guildRoute(async ({ guildId }) => {
-  const [panel, categories, resources] = await Promise.all([
-    prisma.ticketPanel.findUnique({ where: { guildId } }),
-    prisma.ticketCategory.findMany({
+  const [panels, tickets, resources] = await Promise.all([
+    prisma.ticketPanel.findMany({
       where: { guildId },
+      include: { categories: { orderBy: { createdAt: 'asc' } } },
       orderBy: { createdAt: 'asc' },
+    }),
+    prisma.ticket.findMany({
+      where: { guildId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
     }),
     guildResources(guildId),
   ]);
   return NextResponse.json({
-    panel,
-    categories,
+    panels,
+    panel: panels[0] || null,
+    tickets,
     channels: resources.channels.filter((channel) =>
       [0, 5].includes(channel.type),
     ),
@@ -83,6 +90,24 @@ const POST = guildRoute(async ({ request, guildId }) => {
     return badRequest('Invalid JSON body.');
   }
 
+  if (body.action === 'delete') {
+    const panelId = Number(body.id);
+    if (!Number.isInteger(panelId)) return badRequest('Invalid panel id.');
+    const panel = await prisma.ticketPanel.findFirst({
+      where: { id: panelId, guildId },
+      select: { id: true },
+    });
+    if (!panel) return badRequest('Ticket panel not found.');
+    await prisma.$transaction([
+      prisma.ticketCategory.updateMany({
+        where: { guildId, panelId: panel.id },
+        data: { panelId: null },
+      }),
+      prisma.ticketPanel.delete({ where: { id: panel.id } }),
+    ]);
+    return NextResponse.json({ deleted: true });
+  }
+
   const categories = (
     Array.isArray(body.categories) ? body.categories : DEFAULT_CATEGORIES
   )
@@ -93,6 +118,15 @@ const POST = guildRoute(async ({ request, guildId }) => {
     return badRequest('Category names must be unique.');
   }
   const panelData = {
+    panelKey: cleanText(
+      body.panelKey,
+      cleanText(body.name, 'support', 60)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'support',
+      60,
+    ),
+    name: cleanText(body.name, 'Support', 80),
     channelId: snowflake(body.channelId),
     title: cleanText(body.title, 'Need a hand?', 120),
     description: cleanText(
@@ -100,7 +134,7 @@ const POST = guildRoute(async ({ request, guildId }) => {
       'Choose a category below and our team will be with you shortly.',
       1000,
     ),
-    color: cleanColor(body.color, '#b9a7ff'),
+    color: cleanColor(body.color, MELLUNE_DEFAULT_EMBED_COLOR),
     emoji: cleanText(body.emoji, '☾', 8),
     imageUrl:
       typeof body.imageUrl === 'string'
@@ -110,15 +144,43 @@ const POST = guildRoute(async ({ request, guildId }) => {
       typeof body.footer === 'string'
         ? body.footer.trim().slice(0, 240) || null
         : null,
+    payload:
+      body.payload && typeof body.payload === 'object'
+        ? cleanEmbed(body.payload)
+        : null,
+    buttonLabel: cleanText(body.buttonLabel, 'Open ticket', 80),
+    buttonStyle: ['PRIMARY', 'SECONDARY', 'SUCCESS', 'DANGER'].includes(
+      body.buttonStyle,
+    )
+      ? body.buttonStyle
+      : 'SECONDARY',
+    buttonEmoji: cleanText(body.buttonEmoji, '', 16) || null,
+    mentionStaff: body.mentionStaff === true,
+    mentionCreator: body.mentionCreator !== false,
+    autoWelcome: body.autoWelcome !== false,
+    autoAddStaff: body.autoAddStaff !== false,
+    maxOpen: Math.min(50, Math.max(1, Number(body.maxOpen) || 1)),
+    cooldownSeconds: Math.min(
+      86400,
+      Math.max(0, Number(body.cooldownSeconds) || 0),
+    ),
     enabled: body.enabled !== false,
   };
 
   const result = await prisma.$transaction(async (transaction) => {
-    const panel = await transaction.ticketPanel.upsert({
-      where: { guildId },
-      update: panelData,
-      create: { guildId, ...panelData },
-    });
+    const existing = body.id
+      ? await transaction.ticketPanel.findFirst({
+          where: { id: Number(body.id), guildId },
+        })
+      : null;
+    const panel = existing
+      ? await transaction.ticketPanel.update({
+          where: { id: existing.id },
+          data: panelData,
+        })
+      : await transaction.ticketPanel.create({
+          data: { guildId, ...panelData },
+        });
     const keptIds = [];
     for (const { id, ...category } of categories) {
       const existing = id
@@ -131,15 +193,13 @@ const POST = guildRoute(async ({ request, guildId }) => {
             where: { id: existing.id },
             data: { ...category, panelId: panel.id },
           })
-        : await transaction.ticketCategory.upsert({
-            where: { guildId_name: { guildId, name: category.name } },
-            update: { ...category, panelId: panel.id },
-            create: { guildId, panelId: panel.id, ...category },
+        : await transaction.ticketCategory.create({
+            data: { guildId, panelId: panel.id, ...category },
           });
       keptIds.push(saved.id);
     }
     await transaction.ticketCategory.deleteMany({
-      where: { guildId, id: { notIn: keptIds } },
+      where: { guildId, panelId: panel.id, id: { notIn: keptIds } },
     });
     return transaction.ticketPanel.findUnique({
       where: { id: panel.id },
@@ -149,6 +209,7 @@ const POST = guildRoute(async ({ request, guildId }) => {
   let jobId = null;
   if (body.publish && panelData.channelId) {
     const job = await queueJob(prisma, guildId, 'PUBLISH_TICKET_PANEL', {
+      panelId: result.id,
       channelId: panelData.channelId,
     });
     jobId = job.id;

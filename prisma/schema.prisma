@@ -36,9 +36,11 @@ model Guild {
   suggestions            Suggestion[]
   botJobs                BotJob[]
   activityEvents         ActivityEvent[]
-  ticketPanel            TicketPanel?
+  ticketPanels           TicketPanel[]
   ticketCategories       TicketCategory[]
   applicationSubmissions ApplicationSubmission[]
+  reactionRolePanels     ReactionRolePanel[]
+  temporaryVoiceRooms    TemporaryVoiceRoom[]
 }
 
 model GuildSettings {
@@ -107,32 +109,58 @@ model Ticket {
   claimedBy    String?
   createdAt    DateTime        @default(now())
   closedAt     DateTime?
+  closedBy     String?
+  closeReason  String?
   categoryId   Int?
+  panelId      Int?
   resolution   String?
   messageCount Int             @default(0)
+  lastMessageAt DateTime?
+  transcript   Json?
+  rating       Int?
+  ratingFeedback String?
+  ratedAt      DateTime?
   guild        Guild           @relation(fields: [guildId], references: [id], onDelete: Cascade)
   category     TicketCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  panel        TicketPanel?    @relation(fields: [panelId], references: [id], onDelete: SetNull)
 
   @@index([guildId, creatorId, status])
   @@index([guildId, categoryId, status])
+  @@index([guildId, panelId, status])
 }
 
 model TicketPanel {
   id          Int              @id @default(autoincrement())
-  guildId     String           @unique
+  guildId     String
+  panelKey    String           @default("support")
+  name        String           @default("Support")
   channelId   String?
   messageId   String?
   title       String           @default("Need a hand?")
   description String           @default("Choose a category below and our team will be with you shortly.")
-  color       String           @default("#b9a7ff")
+  color       String           @default("#3C527F")
   emoji       String           @default("☾")
   imageUrl    String?
   footer      String?
+  payload     Json?
+  buttonLabel String           @default("Open ticket")
+  buttonStyle String           @default("SECONDARY")
+  buttonEmoji String?
+  mentionStaff Boolean        @default(false)
+  mentionCreator Boolean      @default(true)
+  autoWelcome Boolean         @default(true)
+  autoAddStaff Boolean        @default(true)
+  maxOpen     Int             @default(1)
+  cooldownSeconds Int         @default(0)
   enabled     Boolean          @default(false)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   guild       Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
   categories  TicketCategory[]
+  tickets     Ticket[]
+
+  @@unique([guildId, panelKey])
+  @@index([guildId, enabled])
 }
 
 model TicketCategory {
@@ -144,7 +172,7 @@ model TicketCategory {
   emoji             String       @default("✦")
   discordCategoryId String?
   staffRoleIds      Json
-  color             String       @default("#b9a7ff")
+  color             String       @default("#3C527F")
   cooldownSeconds   Int          @default(0)
   maxOpen           Int          @default(1)
   enabled           Boolean      @default(true)
@@ -154,7 +182,7 @@ model TicketCategory {
   panel             TicketPanel? @relation(fields: [panelId], references: [id], onDelete: SetNull)
   tickets           Ticket[]
 
-  @@unique([guildId, name])
+  @@index([guildId, panelId, name])
   @@index([guildId, enabled])
 }
 
@@ -225,7 +253,7 @@ model GreetingConfig {
   channelId     String?
   title         String?
   description   String?
-  color         String   @default("#b9a7ff")
+  color         String   @default("#3C527F")
   footer        String?
   thumbnailUrl  String?
   imageUrl      String?
@@ -258,15 +286,51 @@ model LevelUser {
 }
 
 model ReactionRole {
-  id        Int    @id @default(autoincrement())
-  guildId   String
-  channelId String
-  messageId String
-  roleId    String
-  label     String
-  guild     Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  id              Int                 @id @default(autoincrement())
+  guildId         String
+  panelId         Int?
+  channelId       String
+  messageId       String?
+  roleId          String
+  label           String
+  emoji           String              @default("🔘")
+  description     String?
+  mode            String              @default("BUTTON")
+  exclusiveGroup  String?
+  enabled         Boolean             @default(true)
+  guild           Guild               @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  panel           ReactionRolePanel?  @relation(fields: [panelId], references: [id], onDelete: Cascade)
 
   @@index([guildId, messageId])
+  @@index([guildId, panelId])
+}
+
+model ReactionRolePanel {
+  id              Int            @id @default(autoincrement())
+  guildId         String
+  name            String
+  channelId       String
+  messageId       String?        @unique
+  mode            String         @default("BUTTON")
+  title           String?
+  description     String?
+  color           String         @default("#3C527F")
+  authorName      String?
+  authorIconUrl   String?
+  thumbnailUrl    String?
+  imageUrl        String?
+  footer          String?
+  footerIconUrl   String?
+  useTimestamp    Boolean        @default(false)
+  exclusiveMode   String         @default("MULTIPLE")
+  enabled         Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  guild           Guild          @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  entries         ReactionRole[]
+
+  @@unique([guildId, name])
+  @@index([guildId, enabled])
 }
 
 model CustomCommand {
@@ -344,9 +408,35 @@ model TemporaryVoiceConfig {
   categoryId       String?
   nameFormat       String   @default("{username}'s room")
   userLimit        Int      @default(0)
+  defaultPrivacy   String   @default("PUBLIC")
+  maxRooms         Int      @default(0)
+  autoDelete       Boolean  @default(true)
+  staffRoleIds     Json?
+  panelPayload     Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   guild            Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  rooms            TemporaryVoiceRoom[]
+}
+
+model TemporaryVoiceRoom {
+  id             Int      @id @default(autoincrement())
+  guildId        String
+  channelId      String   @unique
+  textChannelId  String?
+  panelMessageId String?
+  ownerId        String
+  privacy        String   @default("PUBLIC")
+  userLimit      Int      @default(0)
+  whitelist      Json?
+  blocked        Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  config         TemporaryVoiceConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+
+  @@index([guildId, ownerId])
+  @@index([guildId, privacy])
 }
 
 model ApplicationForm {

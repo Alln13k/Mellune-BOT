@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import ActivityChart from './ActivityChart';
 import { guildApi, useDashboard, useGuildData } from './DashboardContext';
+import { MELLUNE_DEFAULT_EMBED_COLOR } from '../../lib/constants';
 import {
   Card,
   EmptyState,
@@ -652,6 +653,49 @@ function TemporaryVoicePage() {
             />
           </Field>
         </div>
+        <div className="form-row">
+          <Field label="Default privacy">
+            <select
+              value={form.defaultPrivacy || 'PUBLIC'}
+              onChange={(event) =>
+                setForm({ ...form, defaultPrivacy: event.target.value })
+              }
+            >
+              <option value="PUBLIC">Public</option>
+              <option value="PRIVATE">Private</option>
+            </select>
+          </Field>
+          <Field label="Maximum active rooms (0 = unlimited)">
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={form.maxRooms || 0}
+              onChange={(event) =>
+                setForm({ ...form, maxRooms: event.target.value })
+              }
+            />
+          </Field>
+        </div>
+        <Toggle
+          label="Delete empty rooms automatically"
+          checked={form.autoDelete !== false}
+          onChange={(value) => setForm({ ...form, autoDelete: value })}
+        />
+        <Field label="Staff role IDs (comma separated)">
+          <input
+            value={(form.staffRoleIds || []).join(', ')}
+            onChange={(event) =>
+              setForm({
+                ...form,
+                staffRoleIds: event.target.value
+                  .split(',')
+                  .map((value) => value.trim())
+                  .filter(Boolean),
+              })
+            }
+          />
+        </Field>
       </Card>
     </FeatureFrame>
   );
@@ -661,17 +705,39 @@ function RolesPage() {
   const feature = useFeature('roles');
   const [form, setForm] = useState({
     name: '',
-    color: '#b9a7ff',
+    color: MELLUNE_DEFAULT_EMBED_COLOR,
     userId: '',
     roleId: '',
   });
   const [panel, setPanel] = useState({
     channelId: '',
+    name: 'Role menu',
+    mode: 'BUTTON',
     title: 'Choose your roles',
     description: 'Select a button to update your roles.',
-    label: 'Role',
-    panelRoleId: '',
+    color: MELLUNE_DEFAULT_EMBED_COLOR,
+    exclusiveMode: 'MULTIPLE',
+    entries: [{ roleId: '', label: 'Role', emoji: '🔘', enabled: true }],
   });
+  useEffect(() => {
+    const saved = feature.data?.panels?.[0];
+    if (saved) {
+      setPanel({
+        ...panel,
+        ...saved,
+        entries: saved.entries?.length ? saved.entries : panel.entries,
+      });
+    }
+    // Load the persisted menu once the feature endpoint responds.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feature.data]);
+  const updateEntry = (index, key, value) =>
+    setPanel((current) => ({
+      ...current,
+      entries: current.entries.map((entry, entryIndex) =>
+        entryIndex === index ? { ...entry, [key]: value } : entry,
+      ),
+    }));
   const roles = feature.data?.roles || [];
   return (
     <FeatureFrame
@@ -788,7 +854,7 @@ function RolesPage() {
       </div>
       <Card
         title="Role panel"
-        description="Publish persistent buttons backed by database definitions."
+        description="Build one persistent panel with multiple role choices."
       >
         <div className="form-row">
           <SelectField
@@ -797,23 +863,36 @@ function RolesPage() {
             onChange={(value) => setPanel({ ...panel, channelId: value })}
             options={feature.data?.channels || []}
           />
-          <Field label="Role id">
+          <Field label="Panel name">
             <input
-              value={panel.panelRoleId}
+              value={panel.name}
               onChange={(event) =>
-                setPanel({ ...panel, panelRoleId: event.target.value })
+                setPanel({ ...panel, name: event.target.value })
               }
             />
           </Field>
         </div>
         <div className="form-row">
-          <Field label="Button label">
-            <input
-              value={panel.label}
+          <Field label="Mode">
+            <select
+              value={panel.mode}
+              onChange={(event) => setPanel({ ...panel, mode: event.target.value })}
+            >
+              <option value="BUTTON">Buttons</option>
+              <option value="SELECT">Select menu</option>
+              <option value="REACTION">Reactions</option>
+            </select>
+          </Field>
+          <Field label="Selection">
+            <select
+              value={panel.exclusiveMode}
               onChange={(event) =>
-                setPanel({ ...panel, label: event.target.value })
+                setPanel({ ...panel, exclusiveMode: event.target.value })
               }
-            />
+            >
+              <option value="MULTIPLE">Multiple roles</option>
+              <option value="EXCLUSIVE">One role only</option>
+            </select>
           </Field>
           <Field label="Panel title">
             <input
@@ -824,21 +903,96 @@ function RolesPage() {
             />
           </Field>
         </div>
-        <button
-          type="button"
-          className="button"
-          onClick={() =>
-            feature.save({
-              action: 'panel',
-              channelId: panel.channelId,
-              title: panel.title,
-              description: panel.description,
-              roles: [{ roleId: panel.panelRoleId, label: panel.label }],
-            })
-          }
-        >
-          <Send size={16} /> Publish role panel
-        </button>
+        <Field label="Description">
+          <textarea
+            rows="3"
+            value={panel.description}
+            onChange={(event) =>
+              setPanel({ ...panel, description: event.target.value })
+            }
+          />
+        </Field>
+        <div className="category-grid">
+          {panel.entries.map((entry, index) => (
+            <div className="category-card" key={index}>
+              <div className="form-row">
+                <Field label="Emoji">
+                  <input
+                    value={entry.emoji}
+                    maxLength={16}
+                    onChange={(event) => updateEntry(index, 'emoji', event.target.value)}
+                  />
+                </Field>
+                <Field label="Role id">
+                  <input
+                    value={entry.roleId}
+                    onChange={(event) => updateEntry(index, 'roleId', event.target.value)}
+                  />
+                </Field>
+              </div>
+              <Field label="Label">
+                <input
+                  value={entry.label}
+                  maxLength={80}
+                  onChange={(event) => updateEntry(index, 'label', event.target.value)}
+                />
+              </Field>
+              <Field label="Description">
+                <input
+                  value={entry.description || ''}
+                  maxLength={200}
+                  onChange={(event) =>
+                    updateEntry(index, 'description', event.target.value)
+                  }
+                />
+              </Field>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                disabled={panel.entries.length <= 1}
+                onClick={() =>
+                  setPanel({
+                    ...panel,
+                    entries: panel.entries.filter((_, itemIndex) => itemIndex !== index),
+                  })
+                }
+              >
+                <Trash2 size={16} /> Remove option
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="form-row">
+          <button
+            type="button"
+            className="button button-ghost"
+            disabled={panel.entries.length >= 25}
+            onClick={() =>
+              setPanel({
+                ...panel,
+                entries: [
+                  ...panel.entries,
+                  { roleId: '', label: 'Role', emoji: '🔘', enabled: true },
+                ],
+              })
+            }
+          >
+            <Plus size={16} /> Add role option
+          </button>
+          <button
+            type="button"
+            className="button"
+            onClick={() =>
+              feature.save({
+                action: 'panel',
+                ...panel,
+                entries: panel.entries,
+              })
+            }
+          >
+            <Send size={16} /> Publish role panel
+          </button>
+        </div>
       </Card>
     </FeatureFrame>
   );
@@ -1268,7 +1422,7 @@ function EmbedBuilderPage() {
     channelId: '',
     title: '',
     description: '',
-    color: '#b9a7ff',
+    color: MELLUNE_DEFAULT_EMBED_COLOR,
     fields: [],
   });
   const payload = {
@@ -1525,7 +1679,7 @@ function AnnouncementsPage() {
                 payload: {
                   title: form.title,
                   description: form.description,
-                  color: '#b9a7ff',
+                  color: MELLUNE_DEFAULT_EMBED_COLOR,
                 },
               })
             }
@@ -1542,7 +1696,7 @@ function AnnouncementsPage() {
                 payload: {
                   title: form.title,
                   description: form.description,
-                  color: '#b9a7ff',
+                  color: MELLUNE_DEFAULT_EMBED_COLOR,
                 },
               })
             }
