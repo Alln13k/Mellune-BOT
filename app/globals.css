@@ -1142,6 +1142,22 @@ code.chip {
   background: #313338;
 }
 
+.giveaway-preview {
+  display: block;
+}
+
+.giveaway-preview .discord-author {
+  margin-bottom: 12px;
+}
+
+.giveaway-preview h3 {
+  margin: 0 0 8px;
+}
+
+.giveaway-preview p {
+  margin: 8px 0;
+}
+
 .discord-author {
   display: flex;
   align-items: center;
