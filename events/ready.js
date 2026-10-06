@@ -1,5 +1,8 @@
 const { Events } = require('discord.js');
 const { deploySlashCommands } = require('../handlers/commandDeployer');
+const {
+  startMemberCounterSync,
+} = require('../services/memberCounter/memberCounterService');
 
 module.exports = {
   name: Events.ClientReady,
@@ -13,5 +16,6 @@ module.exports = {
     } catch (error) {
       console.error('Slash command deploy failed:', error.message);
     }
+    client.stopMemberCounterSync = startMemberCounterSync(client);
   },
 };

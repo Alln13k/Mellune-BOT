@@ -41,6 +41,9 @@ model Guild {
   applicationSubmissions ApplicationSubmission[]
   reactionRolePanels     ReactionRolePanel[]
   temporaryVoiceRooms    TemporaryVoiceRoom[]
+  memberCounter          MemberCounterConfig?
+  autoRoleConfig         AutoRoleConfig?
+  backups                ServerBackup[]
 }
 
 model GuildSettings {
@@ -52,6 +55,10 @@ model GuildSettings {
   suggestionEnabled     Boolean  @default(false)
   suggestionChannelId   String?
   suggestionStaffRoleId String?
+  levelUpEnabled       Boolean  @default(false)
+  levelUpChannelId     String?
+  levelUpPayload       Json?
+  levelUpMention       Boolean  @default(true)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   guild                 Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -62,6 +69,9 @@ model User {
   guildId   String
   userId    String
   username  String
+  displayName String?
+  avatar    String?
+  joinedAt  DateTime?
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   guild     Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -322,6 +332,47 @@ model LevelUser {
 
   @@unique([guildId, userId])
   @@index([guildId, xp])
+}
+
+model MemberCounterConfig {
+  id         Int      @id @default(autoincrement())
+  guildId    String   @unique
+  enabled    Boolean  @default(false)
+  channelId  String?
+  categoryId String?
+  format     String   @default("👥 Members: {membercount}")
+  lastCount  Int?
+  lastSyncedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+model AutoRoleConfig {
+  id        Int      @id @default(autoincrement())
+  guildId   String   @unique
+  enabled   Boolean  @default(false)
+  roleIds   Json
+  ignoreBots Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+model ServerBackup {
+  id        Int      @id @default(autoincrement())
+  guildId   String
+  name      String
+  version   Int      @default(1)
+  status    String   @default("READY")
+  createdBy String
+  snapshot  Json
+  summary   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, createdAt])
 }
 
 model ReactionRole {

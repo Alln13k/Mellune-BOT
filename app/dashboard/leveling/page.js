@@ -11,6 +11,7 @@ import {
   Card,
   EmptyState,
   ErrorNotice,
+  Field,
   PageHeader,
   Skeleton,
   Toggle,
@@ -26,7 +27,13 @@ export default function LevelingPage() {
     try {
       await guildApi(guild.id, 'leveling', {
         method: 'POST',
-        body: JSON.stringify({ enabled }),
+        body: JSON.stringify({
+          enabled,
+          levelUpEnabled: data?.levelUpEnabled,
+          levelUpChannelId: data?.levelUpChannelId,
+          levelUpPayload: data?.levelUpPayload,
+          levelUpMention: data?.levelUpMention,
+        }),
       });
       setData({ ...data, enabled });
       notify(enabled ? 'Leveling enabled.' : 'Leveling disabled.');
@@ -34,6 +41,26 @@ export default function LevelingPage() {
       notify(requestError.message, 'error');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveLevelUp(patch) {
+    try {
+      const result = await guildApi(guild.id, 'leveling', {
+        method: 'POST',
+        body: JSON.stringify({
+          enabled: data.enabled,
+          levelUpEnabled: data.levelUpEnabled,
+          levelUpChannelId: data.levelUpChannelId,
+          levelUpPayload: data.levelUpPayload,
+          levelUpMention: data.levelUpMention,
+          ...patch,
+        }),
+      });
+      setData({ ...data, ...result });
+      notify('Level-up notifications saved.');
+    } catch (requestError) {
+      notify(requestError.message, 'error');
     }
   }
 
@@ -65,6 +92,55 @@ export default function LevelingPage() {
               {data.total === 1 ? '' : 's'} currently ranked.
             </p>
           )}
+        </Card>
+
+        <Card title="Level-up notifications" description="Notify members when real XP crosses a level.">
+          {data ? (
+            <>
+              <Toggle
+                label="Enable notifications"
+                checked={data.levelUpEnabled}
+                onChange={(value) => saveLevelUp({ levelUpEnabled: value })}
+              />
+              <Field label="Notification channel">
+                <select
+                  value={data.levelUpChannelId || ''}
+                  onChange={(event) =>
+                    saveLevelUp({ levelUpChannelId: event.target.value })
+                  }
+                >
+                  <option value="">Choose a channel…</option>
+                  {(data.channels || []).map((channel) => (
+                    <option value={channel.id} key={channel.id}>
+                      #{channel.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Message">
+                <textarea
+                  rows="3"
+                  value={data.levelUpPayload?.description || ''}
+                  onChange={(event) =>
+                    setData({
+                      ...data,
+                      levelUpPayload: {
+                        ...(data.levelUpPayload || {}),
+                        description: event.target.value,
+                      },
+                    })
+                  }
+                  onBlur={() => saveLevelUp({ levelUpPayload: data.levelUpPayload })}
+                  placeholder="🎉 {user} reached level {level}!"
+                />
+              </Field>
+              <Toggle
+                label="Mention member"
+                checked={data.levelUpMention}
+                onChange={(value) => saveLevelUp({ levelUpMention: value })}
+              />
+            </>
+          ) : <Skeleton height={180} />}
         </Card>
 
         <Card title="Leaderboard" description="The ten most active members.">

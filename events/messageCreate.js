@@ -1,5 +1,6 @@
 const { Events } = require('discord.js');
 const { addMessageXp } = require('../services/leveling/xpService');
+const { notifyLevelUp } = require('../services/leveling/levelUpService');
 const { inspectMessage } = require('../services/automod/automodService');
 const { ensureGuild, ensureUser } = require('../services/guildService');
 const { recordActivity } = require('../services/activityService');
@@ -43,7 +44,23 @@ module.exports = {
       return;
     }
     if (await inspectMessage(message, client.prisma)) return;
-    if (settings?.xpEnabled)
-      await addMessageXp(client.prisma, message.guild.id, message.author.id);
+    if (settings?.xpEnabled) {
+      const result = await addMessageXp(
+        client.prisma,
+        message.guild.id,
+        message.author.id,
+      );
+      if (result.leveledUp) {
+        await recordActivity(client.prisma, {
+          guildId: message.guild.id,
+          kind: 'LEVEL_UP',
+          userId: message.author.id,
+          metadata: { level: result.entry.level, xp: result.entry.xp },
+        });
+        await notifyLevelUp(message, result, settings).catch((error) =>
+          console.error('Level-up notification failed:', error.message),
+        );
+      }
+    }
   },
 };
