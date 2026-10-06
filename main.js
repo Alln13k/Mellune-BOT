@@ -2,7 +2,11 @@ require('dotenv').config();
 
 const path = require('node:path');
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
-const { connectDatabase, disconnectDatabase, prisma } = require('./database/client');
+const {
+  connectDatabase,
+  disconnectDatabase,
+  prisma,
+} = require('./database/client');
 const { validateEnvironment } = require('./utils/config');
 const { loadCommands } = require('./handlers/commandLoader');
 const { loadEvents } = require('./handlers/eventLoader');
@@ -29,8 +33,12 @@ async function start() {
   attachInteractionHandler(client, commands, prisma);
 
   client.on('error', (error) => console.error('Discord client error:', error));
-  process.on('unhandledRejection', (error) => console.error('Unhandled promise rejection:', error));
-  process.on('uncaughtException', (error) => console.error('Uncaught exception:', error));
+  process.on('unhandledRejection', (error) =>
+    console.error('Unhandled promise rejection:', error),
+  );
+  process.on('uncaughtException', (error) =>
+    console.error('Uncaught exception:', error),
+  );
   process.once('SIGINT', async () => {
     await client.destroy();
     await disconnectDatabase();

@@ -15,6 +15,9 @@ test('all commands expose valid slash command data and execute handlers', () => 
 test('environment validation reports missing secrets without revealing values', () => {
   const original = process.env.DISCORD_TOKEN;
   delete process.env.DISCORD_TOKEN;
-  assert.throws(() => require('../utils/config').validateEnvironment(), /DISCORD_TOKEN/);
+  assert.throws(
+    () => require('../utils/config').validateEnvironment(),
+    /DISCORD_TOKEN/,
+  );
   process.env.DISCORD_TOKEN = original;
 });

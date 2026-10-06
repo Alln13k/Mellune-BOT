@@ -10,7 +10,8 @@ function loadCommands(rootDir) {
       if (entry.isDirectory()) walk(fullPath);
       else if (entry.name.endsWith('.js')) {
         const command = require(fullPath);
-        if (command.data?.name && typeof command.execute === 'function') commands.set(command.data.name, command);
+        if (command.data?.name && typeof command.execute === 'function')
+          commands.set(command.data.name, command);
       }
     }
   };

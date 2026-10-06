@@ -9,8 +9,12 @@ function attachInteractionHandler(client, commands, prisma) {
       await command.execute(interaction, { prisma, client });
     } catch (error) {
       console.error('Interaction error:', error);
-      const response = { embeds: [errorEmbed('Something went wrong. Please try again later.')], ephemeral: true };
-      if (interaction.replied || interaction.deferred) await interaction.followUp(response);
+      const response = {
+        embeds: [errorEmbed('Something went wrong. Please try again later.')],
+        ephemeral: true,
+      };
+      if (interaction.replied || interaction.deferred)
+        await interaction.followUp(response);
       else await interaction.reply(response);
     }
   });

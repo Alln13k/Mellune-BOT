@@ -1,8 +1,14 @@
-const { SlashCommandBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+} = require('discord.js');
 const { successEmbed } = require('../../utils/embeds');
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('help').setDescription('Browse Mellune commands.'),
+  data: new SlashCommandBuilder()
+    .setName('help')
+    .setDescription('Browse Mellune commands.'),
   async execute(interaction) {
     const menu = new StringSelectMenuBuilder()
       .setCustomId('help-category')
@@ -16,7 +22,12 @@ module.exports = {
         { label: 'Leveling', value: 'leveling', emoji: '📈' },
       );
     await interaction.reply({
-      embeds: [successEmbed('Mellune help', 'Choose a category below to discover the available commands.')],
+      embeds: [
+        successEmbed(
+          'Mellune help',
+          'Choose a category below to discover the available commands.',
+        ),
+      ],
       components: [new ActionRowBuilder().addComponents(menu)],
     });
   },
