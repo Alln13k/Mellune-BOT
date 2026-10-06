@@ -1332,7 +1332,7 @@ function CompleteGiveawaysPage() {
         </Card>
         <Card title="Live Discord preview" description="This preview updates as you edit the form.">
           <div
-            className="discord-message"
+            className="discord-message giveaway-preview"
             style={{ borderLeft: `4px solid ${preview.embedColor}` }}
           >
             <div className="discord-author">
