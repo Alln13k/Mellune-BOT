@@ -211,6 +211,9 @@ async function saveQuestions(transaction, formId, rawQuestions) {
       id: Number.isInteger(Number(question.id)) ? Number(question.id) : null,
       ...normalizeQuestion(question, index),
     }));
+  if (!questions.length) {
+    throw new Error('Add at least one question to the application type.');
+  }
   const existing = await transaction.applicationQuestion.findMany({
     where: { formId, deletedAt: null },
     select: { id: true },
