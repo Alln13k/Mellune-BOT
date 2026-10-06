@@ -1114,6 +1114,381 @@ function GiveawaysPage() {
   );
 }
 
+void GiveawaysPage;
+
+function CompleteGiveawaysPage() {
+  const feature = useFeature('giveaways');
+  const [selectedId, setSelectedId] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [detailError, setDetailError] = useState('');
+  const [rerollCount, setRerollCount] = useState(1);
+  const [excludePrevious, setExcludePrevious] = useState(true);
+  const [form, setForm] = useState({
+    prize: '',
+    channelId: '',
+    winners: 1,
+    durationAmount: 30,
+    durationUnit: 'minutes',
+    description: '',
+    embedTitle: 'Giveaway',
+    embedDescription: '',
+    embedColor: MELLUNE_DEFAULT_EMBED_COLOR,
+    thumbnailUrl: '',
+    imageUrl: '',
+    authorName: '',
+    footerText: '',
+    timestamp: true,
+    buttonLabel: 'Enter Giveaway',
+    buttonEmoji: '🎉',
+    requiredRoleId: '',
+    bonusRoleIds: '',
+    minAccountAgeHours: 0,
+    minMembershipHours: 0,
+  });
+  const [entrySearch, setEntrySearch] = useState('');
+  const [entryPage, setEntryPage] = useState(1);
+  const set = (key) => (event) =>
+    setForm((current) => ({ ...current, [key]: event.target.value }));
+  const choose = async (id, page = 1, search = entrySearch) => {
+    setSelectedId(id);
+    setEntryPage(page);
+    setDetailError('');
+    try {
+      const result = await guildApi(
+        feature.guild.id,
+        `giveaways/${id}?page=${page}&search=${encodeURIComponent(search)}`,
+      );
+      setDetail(result);
+      setRerollCount(result.giveaway.winners);
+    } catch (error) {
+      setDetailError(error.message);
+    }
+  };
+  const create = async () => {
+    await feature.save({
+      ...form,
+      winners: Number(form.winners),
+      durationAmount: Number(form.durationAmount),
+      minAccountAgeHours: Number(form.minAccountAgeHours),
+      minMembershipHours: Number(form.minMembershipHours),
+      bonusRoleIds: form.bonusRoleIds
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
+      action: 'start',
+    });
+    setForm((current) => ({ ...current, prize: '' }));
+  };
+  const action = async (payload) => {
+    await feature.save(payload);
+    await feature.reload();
+    if (selectedId) await choose(selectedId, entryPage);
+  };
+  const deleteGiveaway = async () => {
+    if (!selectedId || !window.confirm(
+      'Delete Giveaway?\n\nThis permanently removes the giveaway and its stored entries.',
+    )) return;
+    try {
+      await guildApi(feature.guild.id, `giveaways/${selectedId}`, {
+        method: 'DELETE',
+      });
+      feature.notify('Giveaway deleted successfully.');
+      setSelectedId(null);
+      setDetail(null);
+      await feature.reload();
+    } catch (error) {
+      feature.notify(error.message, 'error');
+    }
+  };
+  const preview = {
+    ...form,
+    id: 'preview',
+    prize: form.prize || 'Your prize',
+    winners: Number(form.winners) || 1,
+  };
+  const active = feature.data?.giveaways?.filter(
+    (giveaway) => giveaway.status === 'ACTIVE' || giveaway.status === 'QUEUED',
+  ) || [];
+  const completed = feature.data?.giveaways?.filter(
+    (giveaway) => !active.includes(giveaway),
+  ) || [];
+  return (
+    <FeatureFrame
+      icon={Gift}
+      title="Giveaways"
+      description={CONFIG_TITLES.giveaways[1]}
+      error={feature.error}
+      reload={feature.reload}
+    >
+      <div className="grid-2">
+        <Card
+          title="Create giveaway"
+          description="Every field is persisted and used by the Discord message."
+        >
+          <Field label="Prize">
+            <input value={form.prize} onChange={set('prize')} />
+          </Field>
+          <SelectField
+            label="Giveaway channel"
+            value={form.channelId}
+            onChange={(value) => setForm({ ...form, channelId: value })}
+            options={feature.data?.channels || []}
+          />
+          <div className="form-row">
+            <Field label="Winners">
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={form.winners}
+                onChange={set('winners')}
+              />
+            </Field>
+            <Field label="Duration amount">
+              <input
+                type="number"
+                min="1"
+                value={form.durationAmount}
+                onChange={set('durationAmount')}
+              />
+            </Field>
+            <Field label="Unit">
+              <select value={form.durationUnit} onChange={set('durationUnit')}>
+                <option value="seconds">Seconds</option>
+                <option value="minutes">Minutes</option>
+                <option value="hours">Hours</option>
+                <option value="days">Days</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="Description">
+            <textarea rows="3" value={form.description} onChange={set('description')} />
+          </Field>
+          <div className="form-row">
+            <Field label="Embed title">
+              <input value={form.embedTitle} onChange={set('embedTitle')} />
+            </Field>
+            <Field label="Embed color">
+              <input type="color" value={form.embedColor} onChange={set('embedColor')} />
+            </Field>
+          </div>
+          <Field label="Embed description">
+            <textarea rows="2" value={form.embedDescription} onChange={set('embedDescription')} />
+          </Field>
+          <div className="form-row">
+            <Field label="Thumbnail URL">
+              <input type="url" value={form.thumbnailUrl} onChange={set('thumbnailUrl')} />
+            </Field>
+            <Field label="Image URL">
+              <input type="url" value={form.imageUrl} onChange={set('imageUrl')} />
+            </Field>
+          </div>
+          <div className="form-row">
+            <Field label="Author">
+              <input value={form.authorName} onChange={set('authorName')} />
+            </Field>
+            <Field label="Footer">
+              <input value={form.footerText} onChange={set('footerText')} />
+            </Field>
+          </div>
+          <div className="form-row">
+            <Field label="Entry button text">
+              <input value={form.buttonLabel} onChange={set('buttonLabel')} />
+            </Field>
+            <Field label="Button emoji">
+              <input value={form.buttonEmoji} onChange={set('buttonEmoji')} />
+            </Field>
+          </div>
+          <Field
+            label="Required role ID"
+            hint="Optional. Eligibility is checked by the bot when the button is clicked."
+          >
+            <input value={form.requiredRoleId} onChange={set('requiredRoleId')} />
+          </Field>
+          <Field label="Bonus role IDs" hint="Comma-separated. Each matching role adds one weighted entry.">
+            <input value={form.bonusRoleIds} onChange={set('bonusRoleIds')} />
+          </Field>
+          <div className="form-row">
+            <Field label="Minimum account age (hours)">
+              <input type="number" min="0" value={form.minAccountAgeHours} onChange={set('minAccountAgeHours')} />
+            </Field>
+            <Field label="Minimum server membership (hours)">
+              <input type="number" min="0" value={form.minMembershipHours} onChange={set('minMembershipHours')} />
+            </Field>
+          </div>
+          <Toggle
+            label="Show embed timestamp"
+            checked={form.timestamp}
+            onChange={(value) => setForm({ ...form, timestamp: value })}
+          />
+          <div className="form-row">
+            <button type="button" className="button button-ghost" onClick={() => feature.notify('Live preview updated from the current form.')}>
+              Test giveaway embed
+            </button>
+            <button type="button" className="button" onClick={create} disabled={feature.saving}>
+              <Gift size={16} /> {feature.saving ? 'Creating…' : 'Create giveaway'}
+            </button>
+          </div>
+        </Card>
+        <Card title="Live Discord preview" description="This preview updates as you edit the form.">
+          <div
+            className="discord-message"
+            style={{ borderLeft: `4px solid ${preview.embedColor}` }}
+          >
+            <div className="discord-author">
+              <strong>{preview.authorName || 'Mellune'}</strong>
+              <span className="bot-tag">BOT</span>
+            </div>
+            <h3>{`🎉 ${preview.embedTitle || 'Giveaway'}`}</h3>
+            <p>
+              {preview.description || 'Your giveaway description'}
+              {preview.embedDescription && <><br />{preview.embedDescription}</>}
+            </p>
+            <p>
+              🎁 Prize: <strong>{preview.prize}</strong><br />
+              🏆 Winners: <strong>{preview.winners}</strong><br />
+              ⏰ Ends: calculated from {preview.durationAmount || 0} {preview.durationUnit}<br />
+              👥 Entries: <strong>0</strong>
+            </p>
+            {preview.imageUrl && <img src={preview.imageUrl} alt="" style={{ maxWidth: '100%' }} />}
+            {preview.thumbnailUrl && <img src={preview.thumbnailUrl} alt="" style={{ maxWidth: '96px' }} />}
+            <button type="button" className="button button-small" disabled>
+              {preview.buttonEmoji} {preview.buttonLabel}
+            </button>
+            <p className="subtle">{preview.footerText || 'Mellune giveaway'}</p>
+          </div>
+        </Card>
+      </div>
+      <div className="grid-2">
+        <Card title="Active giveaways" description="Queued and active records from PostgreSQL.">
+          {!feature.data ? <Skeleton height={180} /> : active.length ? (
+            <ul className="list">
+              {active.map((giveaway) => (
+                <li key={giveaway.id}>
+                  <button type="button" className="list-main" onClick={() => choose(giveaway.id)}>
+                    <strong>{giveaway.prize}</strong>
+                    <span className="subtle">
+                      {giveaway.status} · {giveaway._count.entries} entries · {giveaway.winners} winners
+                    </span>
+                  </button>
+                  <time className="subtle">{formatDate(giveaway.endsAt)}</time>
+                </li>
+              ))}
+            </ul>
+          ) : <EmptyState icon={Gift} title="No active giveaways" />}
+        </Card>
+        <Card title="Completed giveaways" description="History remains available after the winner announcement.">
+          {!feature.data ? <Skeleton height={180} /> : completed.length ? (
+            <ul className="list">
+              {completed.map((giveaway) => (
+                <li key={giveaway.id}>
+                  <button type="button" className="list-main" onClick={() => choose(giveaway.id)}>
+                    <strong>{giveaway.prize}</strong>
+                    <span className="subtle">
+                      {giveaway.status} · {giveaway._count.entries} entries · {giveaway.winners} winners
+                    </span>
+                  </button>
+                  <time className="subtle">{formatDate(giveaway.endsAt)}</time>
+                </li>
+              ))}
+            </ul>
+          ) : <EmptyState icon={Gift} title="No completed giveaways" />}
+        </Card>
+      </div>
+      {selectedId && (
+        <Card
+          title={`Giveaway #${selectedId}`}
+          description={detailError || 'Guild-scoped details and persisted entries.'}
+          action={
+            <div className="form-row">
+              {detail?.giveaway?.status === 'ACTIVE' && (
+                <button type="button" className="button button-ghost" onClick={() => action({ action: 'end', id: selectedId })}>
+                  End giveaway
+                </button>
+              )}
+              {detail?.giveaway?.status === 'ENDED' && (
+                <>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={rerollCount}
+                    onChange={(event) => setRerollCount(event.target.value)}
+                    aria-label="Reroll winner count"
+                  />
+                  <label className="field-hint">
+                    <input
+                      type="checkbox"
+                      checked={excludePrevious}
+                      onChange={(event) => setExcludePrevious(event.target.checked)}
+                    /> Exclude previous winners
+                  </label>
+                  <button type="button" className="button button-ghost" onClick={() => action({ action: 'reroll', id: selectedId, count: Number(rerollCount), excludePrevious })}>
+                    Reroll winners
+                  </button>
+                </>
+              )}
+              <button type="button" className="button button-ghost" onClick={deleteGiveaway}>
+                Delete giveaway
+              </button>
+            </div>
+          }
+        >
+          {!detail ? <Skeleton height={180} /> : (
+            <>
+              <div className="details">
+                <div><dt>Status</dt><dd>{detail.giveaway.status} · Discord {detail.giveaway.discordStatus}</dd></div>
+                <div><dt>Creator</dt><dd className="mono">{detail.giveaway.startedBy || 'Unknown'}</dd></div>
+                <div><dt>Channel</dt><dd className="mono">{detail.giveaway.channelId}</dd></div>
+                <div><dt>Message</dt><dd className="mono">{detail.giveaway.messageId || 'Not sent yet'}</dd></div>
+                <div><dt>Entries</dt><dd>{detail.giveaway._count.entries}</dd></div>
+                <div><dt>Winners</dt><dd>{detail.giveaway.winners}</dd></div>
+                <div><dt>Duration</dt><dd>{detail.giveaway.durationSeconds}s</dd></div>
+                <div><dt>Created</dt><dd>{formatDate(detail.giveaway.createdAt)}</dd></div>
+                <div><dt>Start</dt><dd>{formatDate(detail.giveaway.startAt)}</dd></div>
+                <div><dt>End</dt><dd>{formatDate(detail.giveaway.endsAt)}</dd></div>
+                {detail.giveaway.discordError && (
+                  <div><dt>Discord error</dt><dd>{detail.giveaway.discordError}</dd></div>
+                )}
+              </div>
+              <div className="form-row">
+                <input
+                  placeholder="Search by Discord user ID"
+                  value={entrySearch}
+                  onChange={(event) => setEntrySearch(event.target.value)}
+                />
+                <button type="button" className="button button-ghost" onClick={() => choose(selectedId, 1, entrySearch)}>
+                  Refresh entries
+                </button>
+              </div>
+              {detail.entries.length ? (
+                <ul className="list">
+                  {detail.entries.map((entry) => (
+                    <li key={entry.id}>
+                      <div className="list-main">
+                        {entry.user.avatar ? (
+                          <img className="avatar" src={`https://cdn.discordapp.com/avatars/${entry.user.id}/${entry.user.avatar}.png?size=64`} alt="" width="32" height="32" />
+                        ) : null}
+                        <strong>{entry.user.displayName}</strong>
+                        <span className="subtle">{entry.user.username} · {entry.user.id} · {formatDate(entry.createdAt)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : <EmptyState icon={Gift} title="No entries yet" />}
+              <div className="form-row">
+                <button type="button" className="button button-ghost" disabled={entryPage <= 1} onClick={() => choose(selectedId, entryPage - 1)}>Previous</button>
+                <span className="subtle">Page {detail.pagination.page} / {detail.pagination.pages}</span>
+                <button type="button" className="button button-ghost" disabled={entryPage >= detail.pagination.pages} onClick={() => choose(selectedId, entryPage + 1)}>Next</button>
+              </div>
+            </>
+          )}
+        </Card>
+      )}
+    </FeatureFrame>
+  );
+}
+
 function ApplicationsPage() {
   const feature = useFeature('applications');
   const [form, setForm] = useState({
@@ -2015,7 +2390,7 @@ export default function FeatureModule({ section }) {
     roles: RolesPage,
     verification: VerificationPage,
     'temporary-voice': TemporaryVoicePage,
-    giveaways: GiveawaysPage,
+    giveaways: CompleteGiveawaysPage,
     applications: ApplicationsPage,
     reminders: RemindersPage,
     embeds: EmbedBuilderPage,

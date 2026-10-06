@@ -3,6 +3,7 @@ const { MELLUNE_DEFAULT_COLOR_INT } = require('../../utils/embeds');
 const { sendGreetingTest } = require('../welcome/welcomeService');
 const { publishTicketPanel } = require('../ticket/ticketPanelService');
 const {
+  completeGiveaway,
   processEndedGiveaways,
   rerollGiveaway,
   startGiveaway,
@@ -351,8 +352,14 @@ async function executeJob(client, job) {
     if (!giveaway) throw new Error('Giveaway no longer exists.');
     return startGiveaway(client, giveaway);
   }
+  if (job.type === 'END_GIVEAWAY') {
+    return completeGiveaway(client, payload.giveawayId, { manual: true });
+  }
   if (job.type === 'REROLL_GIVEAWAY') {
-    return rerollGiveaway(client, payload.giveawayId);
+    return rerollGiveaway(client, payload.giveawayId, {
+      count: payload.count,
+      excludePrevious: payload.excludePrevious === true,
+    });
   }
   throw new Error(`Unknown bot job: ${job.type}`);
 }

@@ -7,6 +7,7 @@ const { renderText } = require('../services/embedService');
 const { violated } = require('../services/automod/automodService');
 const { nextRecurrence } = require('../services/scheduler/jobWorker');
 const { pickWinners } = require('../services/giveaways/giveawayService');
+const { parseGiveawayDuration } = require('../lib/giveawayDuration');
 const {
   formatName: formatVoiceName,
 } = require('../services/voice/tempVoiceService');
@@ -113,6 +114,15 @@ test('persistent scheduler helpers handle recurrence, voice names and unique win
   );
   assert.equal(winners.length, 2);
   assert.equal(new Set(winners).size, 2);
+});
+
+test('giveaway durations are validated and converted to exact seconds', () => {
+  assert.equal(parseGiveawayDuration(30, 'minutes'), 1800);
+  assert.equal(parseGiveawayDuration('2', 'hours'), 7200);
+  assert.throws(() => parseGiveawayDuration(0, 'minutes'));
+  assert.throws(() => parseGiveawayDuration(-1, 'days'));
+  assert.throws(() => parseGiveawayDuration(1, 'weeks'));
+  assert.throws(() => parseGiveawayDuration(366, 'days'));
 });
 
 test('welcome service greets members with restricted mentions and assigns the auto-role', async () => {

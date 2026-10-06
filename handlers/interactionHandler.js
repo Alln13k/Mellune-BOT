@@ -424,7 +424,7 @@ async function handleComponent(interaction, prisma) {
   }
   if (action === 'giveaway-enter') {
     const result = await enterGiveaway(
-      prisma,
+      interaction.client,
       Number(rawId),
       interaction.user.id,
       interaction.member,
