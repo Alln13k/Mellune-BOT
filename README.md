@@ -1,12 +1,13 @@
 # Mellune Bot
 
-An English-language, modular Discord bot for Mellune. It uses Node.js, JavaScript, discord.js 14, Prisma and SQLite. The project is intentionally split into small files so it is easy to learn and extend.
+An English-language, modular Discord bot for Mellune. It uses Node.js, JavaScript, discord.js 14, Prisma and **Neon Postgres**. The project is intentionally split into small files so it is easy to learn and extend.
 
 ## 1. Requirements
 
-- Node.js 18.18 or newer
+- Node.js 18.18 or newer for the bot (`22.20+` if you use the Neon CLI)
 - A Discord server where you have **Manage Server**
 - A Discord application and bot
+- A Neon project (this repo is set up for `bitter-moon-37158025`, branch `production`)
 
 ## 2. Install
 
@@ -22,11 +23,14 @@ Open `.env` and set:
 ```env
 DISCORD_TOKEN=your_bot_token
 DISCORD_CLIENT_ID=your_application_id
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://USER:PASSWORD@ep-xxx-pooler.REGION.aws.neon.tech/neondb?sslmode=require"
+DIRECT_URL="postgresql://USER:PASSWORD@ep-xxx.REGION.aws.neon.tech/neondb?sslmode=require"
 DEV_GUILD_ID=your_test_server_id
 ```
 
-Never share `DISCORD_TOKEN` or commit `.env`.
+Use the **pooled** Neon URL for `DATABASE_URL` (hostname contains `-pooler`) and the **direct** URL for `DIRECT_URL` (no `-pooler`). Prisma uses the pooled URL at runtime and the direct URL for migrations.
+
+Never share `DISCORD_TOKEN`, `DATABASE_URL`, `DIRECT_URL`, or `NEON_API_KEY`, and never commit `.env`.
 
 ## 3. Create the Discord bot
 
@@ -39,11 +43,35 @@ Never share `DISCORD_TOKEN` or commit `.env`.
 
 The code requests `Guilds`, `GuildMembers`, `GuildMessages`, `MessageContent`, and `GuildVoiceStates`. They are used for slash commands, member configuration, moderation/message features and future voice/member logging.
 
-## 4. Database and commands
+## 4. Neon database
+
+This project uses Neon Postgres, not SQLite.
+
+```bash
+npm i -g neon@latest
+neon login
+neon skills -y
+neon mcp -y
+neon link --project-id bitter-moon-37158025 --branch production -y
+neon config init
+neon deploy
+```
+
+`neon login` opens a browser. In a Cloud Agent or CI machine, browser login cannot finish because the callback is `127.0.0.1`. Create an API key in the Neon Console instead, then:
+
+```bash
+export NEON_API_KEY=your_neon_api_key
+neon link --project-id bitter-moon-37158025 --branch production -y
+neon deploy --allow-protected --update-existing
+```
+
+`neon link` pulls `DATABASE_URL` into `.env`. Copy the matching direct connection string into `DIRECT_URL`.
+
+Then generate the Prisma client and apply the schema:
 
 ```bash
 npx prisma generate
-npx prisma migrate dev --name init
+npx prisma migrate deploy
 npm run deploy:guild
 npm start
 ```
@@ -91,4 +119,4 @@ npx prettier --check .
 
 **Missing permissions**: the bot's role must be above the target member's highest role. Discord also prevents moderation of the server owner.
 
-**Prisma errors**: run `npx prisma generate`, confirm `DATABASE_URL`, then run `npx prisma migrate dev --name init`.
+**Prisma errors**: run `npx prisma generate`, confirm both `DATABASE_URL` (pooled) and `DIRECT_URL` (direct) in `.env`, then run `npx prisma migrate deploy`.
