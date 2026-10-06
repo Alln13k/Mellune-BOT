@@ -44,7 +44,7 @@ test('Prisma schema uses PostgreSQL through DATABASE_URL', () => {
   assert.match(lock, /provider\s*=\s*"postgresql"/);
 });
 
-test('slash commands are serialized and pushed globally plus to every guild', async () => {
+test('slash commands are pushed once per guild and global copies are cleared', async () => {
   const { loadCommands } = require('../handlers/commandLoader');
   const { deploySlashCommands } = require('../handlers/commandDeployer');
   const commands = loadCommands(path.join(__dirname, '..', 'commands'));
@@ -79,7 +79,7 @@ test('slash commands are serialized and pushed globally plus to every guild', as
 
   const count = await deploySlashCommands(client, commands);
   assert.ok(count >= 9);
-  assert.equal(client.globalBody.length, count);
+  assert.deepEqual(client.globalBody, []);
   assert.equal(guildPushes.length, 1);
   assert.equal(guildPushes[0].count, count);
 });

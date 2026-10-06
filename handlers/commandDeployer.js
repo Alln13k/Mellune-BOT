@@ -14,14 +14,11 @@ async function deploySlashCommands(client, commands) {
     throw new Error('Discord application is not ready.');
   }
 
-  await client.application.commands.set(payload);
-  console.log(`Pushed ${payload.length} slash command(s) globally.`);
+  await client.application.commands.set([]);
+  console.log('Cleared global slash commands so they are not duplicated.');
 
   for (const guild of client.guilds.cache.values()) {
-    await guild.commands.set(payload);
-    console.log(
-      `Pushed ${payload.length} slash command(s) to ${guild.name} (${guild.id}).`,
-    );
+    await deploySlashCommandsToGuild(guild, commands);
   }
 
   return payload.length;

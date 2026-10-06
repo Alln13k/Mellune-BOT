@@ -63,7 +63,7 @@ npx prisma generate
 npm start
 ```
 
-On startup Mellune pushes slash commands globally and to every server it is in. In Discord, run `/ping`.
+On startup Mellune pushes slash commands once to every server it is in. In Discord, run `/ping`.
 
 For development with automatic restart:
 
@@ -99,7 +99,7 @@ npx prettier --check .
 
 **Missing environment variables**: copy `.env.example` to `.env` and fill `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, and `DATABASE_URL` (a `postgresql://` URL). `DEV_GUILD_ID` is required by `npm run deploy:guild`.
 
-**Commands do not appear**: invite the bot with `applications.commands`, then restart it (`npm start`). Wait a few seconds and type `/` in Discord. Global commands can take up to an hour if a server has not received a guild push yet.
+**Commands do not appear**: invite the bot with `applications.commands`, then restart it (`npm start`). Wait a few seconds and type `/` in Discord.
 
 **Can't reach database / IPv6 errors**: use the **pooler** URLs from **Connect**, not the direct `db.<project>.supabase.co` host, unless your network supports IPv6.
 
