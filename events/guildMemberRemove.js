@@ -13,9 +13,11 @@ module.exports = {
         userId: member.id,
       });
       await handleMemberLeave(client.prisma, member);
-      await syncMemberCounter(client, member.guild.id);
     } catch (error) {
       console.error('guildMemberRemove failed:', error.message);
     }
+    await syncMemberCounter(client, member.guild.id).catch((error) =>
+      console.error('Member counter leave sync failed:', error.message),
+    );
   },
 };
