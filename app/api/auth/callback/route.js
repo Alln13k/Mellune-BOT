@@ -3,6 +3,7 @@ const {
   exchangeCode,
   getUserContext,
   joinMelluneGuild,
+  verifyMelluneOwnerRole,
 } = require('../../../../lib/discordOAuth');
 const { getOAuthState, setSessionCookie } = require('../../../../lib/session');
 
@@ -21,6 +22,12 @@ async function GET(request) {
     const token = await exchangeCode(code);
     const context = await getUserContext(token.access_token);
     await joinMelluneGuild(token.access_token, context.user.id);
+    if (!(await verifyMelluneOwnerRole(context.user.id))) {
+      return NextResponse.json(
+        { error: 'You need the Mellune owner role to access this dashboard.' },
+        { status: 403 },
+      );
+    }
     const headers = new Headers({ Location: '/dashboard' });
     await setSessionCookie(headers, {
       accessToken: token.access_token,
