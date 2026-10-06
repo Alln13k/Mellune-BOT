@@ -66,6 +66,19 @@ test('welcome service greets members with restricted mentions and assigns the au
   const prisma = {
     guild: { upsert: async () => ({}) },
     user: { upsert: async () => ({}) },
+    greetingConfig: {
+      findUnique: async () => ({
+        enabled: true,
+        channelId: '100000000000000001',
+        title: 'Welcome {server}',
+        description: 'Hi {user} to {server} #{memberCount}',
+        color: '#b9a7ff',
+        useTimestamp: false,
+        mentionMode: 'USER',
+        autoRoleId: '200000000000000002',
+        dmEnabled: false,
+      }),
+    },
     welcomeConfig: {
       findUnique: async () => ({
         enabled: true,
@@ -94,6 +107,10 @@ test('welcome service greets members with restricted mentions and assigns the au
   };
   await handleMemberJoin(prisma, member);
   assert.deepEqual(roles, ['200000000000000002']);
-  assert.equal(sent[0].content, 'Hi <@300000000000000003> to Mellune #42');
+  assert.equal(sent[0].content, '<@300000000000000003>');
+  assert.equal(
+    sent[0].embeds[0].data.description,
+    'Hi <@300000000000000003> to Mellune #42',
+  );
   assert.deepEqual(sent[0].allowedMentions.roles, []);
 });

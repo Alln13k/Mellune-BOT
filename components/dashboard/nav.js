@@ -21,10 +21,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 
-/**
- * `ready` pages are fully wired to the bot and database. The others render an
- * honest "coming soon" page so navigation never leads to a dead link.
- */
+/** Shared navigation metadata; each page is backed by a guild-scoped API. */
 export const NAV_GROUPS = [
   {
     label: 'Workspace',

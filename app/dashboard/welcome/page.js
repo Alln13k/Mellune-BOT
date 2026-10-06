@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DoorOpen, Save } from 'lucide-react';
+import { DoorOpen, Save, Send } from 'lucide-react';
 import {
   guildApi,
   useDashboard,
@@ -50,25 +50,34 @@ function Preview({ title, text, botName }) {
 export default function WelcomePage() {
   const { guild, notify } = useDashboard();
   const { data, error, reload } = useGuildData('welcome');
-  const [form, setForm] = useState(null);
+  const [active, setActive] = useState('WELCOME');
+  const [forms, setForms] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (data) setForm(data.config);
+    if (data) setForms({ WELCOME: data.welcome, GOODBYE: data.goodbye });
   }, [data]);
 
+  const form = forms?.[active];
+  const channels = data?.channels || [];
   const set = (key) => (value) =>
-    setForm((current) => ({ ...current, [key]: value }));
+    setForms((current) => ({
+      ...current,
+      [active]: { ...current[active], [key]: value },
+    }));
 
-  async function save() {
+  async function save(test = false) {
     setSaving(true);
     try {
       const result = await guildApi(guild.id, 'welcome', {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, kind: active, test }),
       });
-      setForm(result.config);
-      notify('Welcome settings saved.');
+      setForms((current) => ({
+        ...current,
+        [active]: result.config,
+      }));
+      notify(test ? 'Test queued for the bot.' : `${active === 'WELCOME' ? 'Welcome' : 'Goodbye'} settings saved.`);
     } catch (requestError) {
       notify(requestError.message, 'error');
     } finally {
@@ -83,58 +92,73 @@ export default function WelcomePage() {
         title="Welcome"
         description="Greet new members and say goodbye gracefully."
         actions={
-          <button
-            type="button"
-            className="button"
-            onClick={save}
-            disabled={!form || saving}
-          >
-            <Save size={16} aria-hidden="true" />
-            {saving ? 'Saving…' : 'Save changes'}
-          </button>
+          <div className="form-row">
+            <button type="button" className="button button-ghost" onClick={() => save(true)} disabled={!form || saving}>
+              <Send size={16} aria-hidden="true" /> Test {active === 'WELCOME' ? 'welcome' : 'goodbye'}
+            </button>
+            <button type="button" className="button" onClick={() => save()} disabled={!form || saving}>
+              <Save size={16} aria-hidden="true" /> {saving ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
         }
       />
       {error && <ErrorNotice onRetry={reload}>{error}</ErrorNotice>}
 
-      {!form ? (
+      {!forms ? (
         <Skeleton height={320} />
       ) : (
-        <div className="grid-2">
+        <>
+          <div className="segmented" role="tablist" aria-label="Greeting type">
+            <button type="button" className={active === 'WELCOME' ? 'is-active' : ''} onClick={() => setActive('WELCOME')}>Welcome</button>
+            <button type="button" className={active === 'GOODBYE' ? 'is-active' : ''} onClick={() => setActive('GOODBYE')}>Goodbye</button>
+          </div>
+          <div className="grid-2">
           <div className="stack">
-            <Card title="Messages">
+            <Card title={`${active === 'WELCOME' ? 'Welcome' : 'Goodbye'} embed`}>
               <Toggle
-                label="Enable welcome system"
-                description="Sends the messages below when members join or leave."
+                label={`Enable ${active === 'WELCOME' ? 'welcome' : 'goodbye'} message`}
+                description="This configuration is stored independently from the other greeting."
                 checked={form.enabled}
                 onChange={set('enabled')}
               />
-              <Field
-                label="Channel id"
-                hint="Right-click the channel in Discord with developer mode on, then Copy Channel ID."
-              >
-                <input
-                  inputMode="numeric"
-                  placeholder="e.g. 123456789012345678"
-                  value={form.channelId ?? ''}
-                  onChange={(event) => set('channelId')(event.target.value)}
-                />
+              <Field label="Channel">
+                <select value={form.channelId || ''} onChange={(event) => set('channelId')(event.target.value)}>
+                  <option value="">Choose a Discord channel…</option>
+                  {channels.filter((channel) => [0, 5].includes(channel.type)).map((channel) => <option value={channel.id} key={channel.id}>#{channel.name}</option>)}
+                </select>
               </Field>
-              <Field label="Welcome message">
+              <div className="form-row">
+                <Field label="Title">
+                  <input value={form.title || ''} onChange={(event) => set('title')(event.target.value)} />
+                </Field>
+                <Field label="Color">
+                  <input type="color" value={form.color || '#b9a7ff'} onChange={(event) => set('color')(event.target.value)} />
+                </Field>
+              </div>
+              <Field label="Description">
                 <textarea
                   rows="3"
-                  maxLength={1500}
-                  value={form.welcomeText ?? ''}
-                  onChange={(event) => set('welcomeText')(event.target.value)}
+                  maxLength={4096}
+                  value={form.description || ''}
+                  onChange={(event) => set('description')(event.target.value)}
                 />
               </Field>
-              <Field label="Goodbye message">
-                <textarea
-                  rows="2"
-                  maxLength={1500}
-                  value={form.leaveText ?? ''}
-                  onChange={(event) => set('leaveText')(event.target.value)}
-                />
+              <div className="form-row">
+                <Field label="Footer"><input value={form.footer || ''} onChange={(event) => set('footer')(event.target.value)} /></Field>
+                <Field label="Author"><input value={form.authorName || ''} onChange={(event) => set('authorName')(event.target.value)} /></Field>
+              </div>
+              <div className="form-row">
+                <Field label="Thumbnail URL"><input type="url" value={form.thumbnailUrl || ''} onChange={(event) => set('thumbnailUrl')(event.target.value)} /></Field>
+                <Field label="Image URL"><input type="url" value={form.imageUrl || ''} onChange={(event) => set('imageUrl')(event.target.value)} /></Field>
+              </div>
+              <Field label="Mention behavior">
+                <select value={form.mentionMode} onChange={(event) => set('mentionMode')(event.target.value)}>
+                  <option value="USER">Mention the member</option>
+                  <option value="NONE">No mention</option>
+                  <option value="EVERYONE">Mention everyone (explicit)</option>
+                </select>
               </Field>
+              <Toggle label="Show timestamp" checked={form.useTimestamp} onChange={set('useTimestamp')} />
               <div className="chips" aria-label="Available placeholders">
                 {PLACEHOLDERS.map((name) => (
                   <code className="chip" key={name}>{`{${name}}`}</code>
@@ -143,10 +167,11 @@ export default function WelcomePage() {
             </Card>
             <Card title="Extras">
               <Toggle
-                label="Send the welcome message by DM"
+                label="Send by DM"
                 description="Members with closed DMs are skipped silently."
                 checked={form.dmEnabled}
                 onChange={set('dmEnabled')}
+                disabled={active !== 'WELCOME'}
               />
               <Field
                 label="Auto-role id"
@@ -168,19 +193,10 @@ export default function WelcomePage() {
             className="sticky"
           >
             <div className="preview-label">Join</div>
-            <Preview
-              title="Welcome preview"
-              text={form.welcomeText}
-              botName="Mellune"
-            />
-            <div className="preview-label">Leave</div>
-            <Preview
-              title="Goodbye preview"
-              text={form.leaveText}
-              botName="Mellune"
-            />
+            <Preview title={active} text={form.description} botName="Mellune" />
           </Card>
-        </div>
+          </div>
+        </>
       )}
     </>
   );
