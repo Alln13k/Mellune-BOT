@@ -21,3 +21,18 @@ test('environment validation reports missing secrets without revealing values', 
   );
   process.env.DISCORD_TOKEN = original;
 });
+
+test('Supabase project metadata points at Mellune DB', () => {
+  const project = require('../supabase.project.json');
+  assert.equal(project.projectRef, 'qjhvapvcbyabbsgvoley');
+  assert.equal(project.url, 'https://qjhvapvcbyabbsgvoley.supabase.co');
+});
+
+test('Supabase helper never returns secret key values', () => {
+  process.env.SUPABASE_ANON_KEY = 'secret-anon-key';
+  process.env.SUPABASE_URL = 'https://qjhvapvcbyabbsgvoley.supabase.co';
+  const { getSupabaseConfig } = require('../utils/supabase');
+  const config = JSON.stringify(getSupabaseConfig());
+  assert.equal(config.includes('secret-anon-key'), false);
+  assert.equal(getSupabaseConfig().hasAnonKey, true);
+});
