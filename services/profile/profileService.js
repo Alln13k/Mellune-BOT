@@ -17,10 +17,17 @@ async function getProfile(prisma, guildId, userId) {
   const progressXp = Math.max(0, xp - previousXp);
   const requiredXp = Math.max(1, nextXp - previousXp);
   return {
-    user: user || { userId, username: userId, displayName: null, avatar: null },
+    user: user || {
+      userId,
+      username: userId,
+      displayName: null,
+      avatar: null,
+      joinedAt: null,
+    },
     level: levelNumber,
     xp,
     nextXp,
+    xpNeeded: Math.max(0, nextXp - xp),
     progress: Math.min(100, Math.round((progressXp / requiredXp) * 100)),
     messages: level?.messages || 0,
     rank: ahead + 1,

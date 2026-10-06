@@ -18,6 +18,10 @@ const {
 const { getProfile } = require('../services/profile/profileService');
 const { addMessageXp } = require('../services/leveling/xpService');
 const { applyAutoRoles } = require('../services/autoRoles/autoRoleService');
+const {
+  formatJoinDate,
+  profileSvg,
+} = require('../commands/utility/profile');
 
 const NOW = new Date('2026-10-06T12:30:00.000Z');
 
@@ -164,10 +168,36 @@ test('profile service calculates XP progress and guild rank from persisted data'
   const profile = await getProfile(prisma, 'guild', '42');
   assert.equal(profile.level, 1);
   assert.equal(profile.progress, 50);
+  assert.equal(profile.xpNeeded, 150);
   assert.equal(profile.rank, 4);
   assert.equal(profile.tickets, 2);
   assert.equal(profile.giveawaysEntered, 4);
   assert.equal(profile.giveawaysWon, 1);
+});
+
+test('profile card stays compact and contains only essential member details', () => {
+  const svg = profileSvg(
+    {
+      user: {
+        username: 'luna',
+        displayName: 'Luna',
+        joinedAt: '2026-10-01T00:00:00.000Z',
+      },
+      level: 1,
+      xp: 250,
+      nextXp: 400,
+      xpNeeded: 150,
+      progress: 50,
+      rank: 4,
+    },
+    { displayAvatarURL: () => 'https://cdn.discordapp.com/avatar.png' },
+  );
+  assert.match(svg, /width="720" height="300"/);
+  assert.match(svg, /LEVEL 1/);
+  assert.match(svg, /150 XP needed for next level/);
+  assert.match(svg, /Rank #4\s+·\s+Joined Oct 1, 2026/);
+  assert.doesNotMatch(svg, /messages|tickets|giveaways/i);
+  assert.equal(formatJoinDate(null), 'Join date unavailable');
 });
 
 test('leveling reports a real level transition after XP is awarded', async () => {
