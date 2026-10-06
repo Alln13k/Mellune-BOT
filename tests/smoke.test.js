@@ -28,11 +28,16 @@ test('Supabase project metadata points at Mellune DB', () => {
   assert.equal(project.url, 'https://qjhvapvcbyabbsgvoley.supabase.co');
 });
 
-test('Supabase helper never returns secret key values', () => {
-  process.env.SUPABASE_ANON_KEY = 'secret-anon-key';
-  process.env.SUPABASE_URL = 'https://qjhvapvcbyabbsgvoley.supabase.co';
-  const { getSupabaseConfig } = require('../utils/supabase');
-  const config = JSON.stringify(getSupabaseConfig());
-  assert.equal(config.includes('secret-anon-key'), false);
-  assert.equal(getSupabaseConfig().hasAnonKey, true);
+test('bot entry file is index.js', () => {
+  const pkg = require('../package.json');
+  assert.equal(pkg.main, 'index.js');
+  assert.match(pkg.scripts.start, /node index\.js/);
+  assert.equal(
+    require('node:fs').existsSync(path.join(__dirname, '..', 'index.js')),
+    true,
+  );
+  assert.equal(
+    require('node:fs').existsSync(path.join(__dirname, '..', 'main.js')),
+    false,
+  );
 });

@@ -2,10 +2,10 @@
   "name": "mellune-bot",
   "version": "1.0.0",
   "description": "A cozy, modular Discord moderation and community bot for Mellune.",
-  "main": "main.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node main.js",
-    "dev": "node --watch main.js",
+    "start": "node index.js",
+    "dev": "node --watch index.js",
     "deploy:guild": "node scripts/deploy-commands.js guild",
     "deploy:global": "node scripts/deploy-commands.js global",
     "prisma:generate": "prisma generate",

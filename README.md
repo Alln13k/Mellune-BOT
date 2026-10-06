@@ -86,7 +86,7 @@ npm run deploy:global
 
 ## 6. What is already built
 
-- startup and error handling in `main.js`
+- startup and error handling in `index.js`
 - command and event loaders
 - multi-guild Prisma schema on Supabase Postgres
 - English `/ping`, `/help`, `/server`, `/user`, `/avatar`
