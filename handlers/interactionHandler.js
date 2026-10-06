@@ -288,7 +288,7 @@ async function handleComponent(interaction, prisma) {
       },
     });
     await interaction.reply({
-      embeds: [successEmbed('Ticket closed', 'This ticket is now archived.')],
+      embeds: [successEmbed('Ticket closed', 'This ticket will now be deleted.')],
     });
     await interaction.channel.permissionOverwrites
       .edit(ticket.creatorId, { ViewChannel: false })
@@ -313,6 +313,9 @@ async function handleComponent(interaction, prisma) {
         })
         .catch(() => {});
     }
+    await interaction.channel.delete('Mellune ticket closed').catch((error) =>
+      console.error(`Failed to delete closed ticket channel: ${error.message}`),
+    );
     return;
   }
   if (interaction.customId === 'ticket-transcript') {
