@@ -24,6 +24,8 @@ model Guild {
   reactionRoles  ReactionRole[]
   customCommands CustomCommand[]
   logConfig      LogConfig?
+  ticketPanel    TicketPanel?
+  ticketCategories TicketCategory[]
 }
 
 model GuildSettings {
@@ -86,8 +88,53 @@ model Ticket {
   claimedBy String?
   createdAt DateTime  @default(now())
   closedAt  DateTime?
+  categoryId Int?
+  resolution String?
+  messageCount Int @default(0)
   guild     Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  category  TicketCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   @@index([guildId, creatorId, status])
+  @@index([guildId, categoryId, status])
+}
+
+model TicketPanel {
+  id          Int      @id @default(autoincrement())
+  guildId     String   @unique
+  channelId   String?
+  messageId   String?
+  title       String   @default("Need a hand?")
+  description String   @default("Choose a category below and our team will be with you shortly.")
+  color       String   @default("#b9a7ff")
+  emoji       String   @default("☾")
+  imageUrl    String?
+  footer      String?
+  enabled     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  categories  TicketCategory[]
+}
+
+model TicketCategory {
+  id                Int      @id @default(autoincrement())
+  guildId           String
+  panelId           Int?
+  name              String
+  description       String   @default("A new support request.")
+  emoji             String   @default("✦")
+  discordCategoryId String?
+  staffRoleIds      Json
+  color             String   @default("#b9a7ff")
+  cooldownSeconds   Int      @default(0)
+  maxOpen           Int      @default(1)
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  guild             Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  panel             TicketPanel? @relation(fields: [panelId], references: [id], onDelete: SetNull)
+  tickets           Ticket[]
+  @@unique([guildId, name])
+  @@index([guildId, enabled])
 }
 
 model Giveaway {
@@ -176,4 +223,17 @@ model LogConfig {
   messageLogId String?
   moderationLogId String?
   guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+model DashboardSession {
+  id           String   @id
+  discordUserId String
+  username     String
+  globalName   String?
+  avatar       String?
+  accessToken  String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  @@index([expiresAt])
+  @@index([discordUserId])
 }

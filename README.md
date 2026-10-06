@@ -95,6 +95,39 @@ npm run lint
 npx prettier --check .
 ```
 
+## 8. Dashboard
+
+The repository now contains a Next.js dashboard at the root alongside the
+Discord bot. The bot entry point remains `index.js`; `main.js` is not used.
+
+For local dashboard development:
+
+```bash
+npm run dashboard:dev
+```
+
+Production build and start:
+
+```bash
+npm run dashboard:build
+npm run dashboard:start
+```
+
+The dashboard keeps Discord OAuth access tokens server-side in the
+`DashboardSession` PostgreSQL table. The browser receives only an opaque,
+HTTP-only session cookie. Add these server-only variables before enabling
+Discord login:
+
+```env
+DISCORD_CLIENT_SECRET=
+DISCORD_REDIRECT_URI=https://your-dashboard-domain.example/api/auth/callback
+SESSION_SECRET=
+```
+
+`SESSION_SECRET` must be at least 32 characters. The dashboard only returns
+guilds the authenticated Discord user owns or can manage, and every guild
+overview request re-checks that permission against Discord.
+
 ## Troubleshooting
 
 **Missing environment variables**: copy `.env.example` to `.env` and fill `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, and `DATABASE_URL` (a `postgresql://` URL). `DEV_GUILD_ID` is required by `npm run deploy:guild`.
