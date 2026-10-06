@@ -14,23 +14,19 @@ async function deploySlashCommands(client, commands) {
     throw new Error('Discord application is not ready.');
   }
 
-  await client.application.commands.set([]);
-  console.log('Cleared global slash commands so they are not duplicated.');
-
   for (const guild of client.guilds.cache.values()) {
-    await deploySlashCommandsToGuild(guild, commands);
+    await clearGuildSlashCommands(guild);
   }
+
+  await client.application.commands.set(payload);
+  console.log(`Pushed ${payload.length} slash command(s) globally.`);
 
   return payload.length;
 }
 
-async function deploySlashCommandsToGuild(guild, commands) {
-  const payload = getSlashCommandPayload(commands);
-  await guild.commands.set(payload);
-  console.log(
-    `Pushed ${payload.length} slash command(s) to ${guild.name} (${guild.id}).`,
-  );
-  return payload.length;
+async function clearGuildSlashCommands(guild) {
+  await guild.commands.set([]);
+  console.log(`Cleared server slash commands for ${guild.name} (${guild.id}).`);
 }
 
 async function deploySlashCommandsViaRest(scope, env = process.env) {
@@ -55,6 +51,6 @@ async function deploySlashCommandsViaRest(scope, env = process.env) {
 module.exports = {
   getSlashCommandPayload,
   deploySlashCommands,
-  deploySlashCommandsToGuild,
+  clearGuildSlashCommands,
   deploySlashCommandsViaRest,
 };
