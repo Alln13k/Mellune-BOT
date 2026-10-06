@@ -177,3 +177,16 @@ model LogConfig {
   moderationLogId String?
   guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 }
+
+model DashboardSession {
+  id           String   @id
+  discordUserId String
+  username     String
+  globalName   String?
+  avatar       String?
+  accessToken  String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  @@index([expiresAt])
+  @@index([discordUserId])
+}
