@@ -59,7 +59,7 @@ function cleanCategory(category) {
 }
 
 const GET = guildRoute(async ({ guildId }) => {
-  const [panels, tickets, resources] = await Promise.all([
+  const [panels, tickets, total, open, closed, rating] = await Promise.all([
     prisma.ticketPanel.findMany({
       where: { guildId },
       include: { categories: { orderBy: { createdAt: 'asc' } } },
@@ -69,13 +69,27 @@ const GET = guildRoute(async ({ guildId }) => {
       where: { guildId },
       orderBy: { createdAt: 'desc' },
       take: 100,
+      include: { category: true, panel: { select: { name: true } } },
     }),
-    guildResources(guildId),
+    prisma.ticket.count({ where: { guildId } }),
+    prisma.ticket.count({ where: { guildId, status: 'OPEN' } }),
+    prisma.ticket.count({ where: { guildId, status: 'CLOSED' } }),
+    prisma.ticket.aggregate({
+      where: { guildId, rating: { not: null } },
+      _avg: { rating: true },
+    }),
   ]);
+  const resources = await guildResources(guildId);
   return NextResponse.json({
     panels,
     panel: panels[0] || null,
     tickets,
+    stats: {
+      total,
+      open,
+      closed,
+      averageRating: rating._avg.rating || null,
+    },
     channels: resources.channels.filter((channel) =>
       [0, 5].includes(channel.type),
     ),

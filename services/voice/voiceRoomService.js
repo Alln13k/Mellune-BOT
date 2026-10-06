@@ -88,7 +88,13 @@ async function findRoom(interaction, prisma, roomId) {
 async function refreshPanel(interaction, room, channel) {
   if (!room.panelMessageId || !channel?.messages) return;
   const message = await channel.messages.fetch(room.panelMessageId).catch(() => null);
-  if (message) await message.edit(roomPanelPayload(room, channel)).catch(() => {});
+  const voiceChannel = await interaction.guild.channels
+    .fetch(room.channelId)
+    .catch(() => null);
+  if (message)
+    await message
+      .edit(roomPanelPayload(room, voiceChannel))
+      .catch(() => {});
 }
 
 async function createVoiceRoom({ newState, prisma, config, formatName }) {
@@ -139,11 +145,43 @@ async function createVoiceRoom({ newState, prisma, config, formatName }) {
     userLimit: Math.max(0, Math.min(99, config.userLimit || 0)),
     permissionOverwrites,
   });
+  const controlChannel =
+    typeof channel.send === 'function'
+      ? channel
+      : await guild.channels.create({
+          name: `${channel.name}-chat`.slice(0, 100),
+          type: 0,
+          parent: parent?.type === 4 ? parent.id : undefined,
+          permissionOverwrites: [
+            {
+              id: guild.roles.everyone.id,
+              ...(privacy === 'PRIVATE'
+                ? { deny: [PermissionFlagsBits.ViewChannel] }
+                : { allow: [PermissionFlagsBits.ViewChannel] }),
+            },
+            {
+              id: newState.member.id,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+              ],
+            },
+            ...staffRoleIds.map((roleId) => ({
+              id: roleId,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+              ],
+            })),
+          ],
+        });
   const room = await prisma.temporaryVoiceRoom.create({
     data: {
       guildId: guild.id,
       channelId: channel.id,
-      textChannelId: channel.id,
+      textChannelId: controlChannel.id,
       ownerId: newState.member.id,
       privacy,
       userLimit: Math.max(0, Math.min(99, config.userLimit || 0)),
@@ -152,8 +190,10 @@ async function createVoiceRoom({ newState, prisma, config, formatName }) {
     },
   });
   const panel =
-    typeof channel.send === 'function'
-      ? await channel.send(roomPanelPayload(room, channel)).catch(() => null)
+    typeof controlChannel.send === 'function'
+      ? await controlChannel
+          .send(roomPanelPayload(room, channel))
+          .catch(() => null)
       : null;
   if (panel) {
     await prisma.temporaryVoiceRoom.update({
@@ -164,6 +204,8 @@ async function createVoiceRoom({ newState, prisma, config, formatName }) {
   }
   await newState.setChannel(channel).catch(async () => {
     await prisma.temporaryVoiceRoom.delete({ where: { id: room.id } }).catch(() => {});
+    if (controlChannel.id !== channel.id)
+      await controlChannel.delete('Could not move member into temporary channel').catch(() => {});
     await channel.delete('Could not move member into temporary channel').catch(() => {});
   });
   return room;
@@ -200,10 +242,17 @@ async function handleVoiceRoomInteraction(interaction, prisma) {
     await prisma.temporaryVoiceRoom.delete({ where: { id: room.id } });
     throw new Error('This voice room was deleted.');
   }
+  const controlChannel = room.textChannelId
+    ? await interaction.guild.channels
+        .fetch(room.textChannelId)
+        .catch(() => channel)
+    : channel;
   if (kind === 'voice-room') {
     if (action === 'delete') {
       await prisma.temporaryVoiceRoom.delete({ where: { id: room.id } });
       await interaction.reply({ content: 'Voice room deleted.', ephemeral: true });
+      if (controlChannel.id !== channel.id)
+        await controlChannel.delete('Voice room owner requested deletion').catch(() => {});
       await channel.delete('Voice room owner requested deletion').catch(() => {});
       return true;
     }
@@ -220,7 +269,7 @@ async function handleVoiceRoomInteraction(interaction, prisma) {
         content: privacy === 'PRIVATE' ? 'Room locked.' : 'Room unlocked.',
         ephemeral: true,
       });
-      await refreshPanel(interaction, updated, channel);
+      await refreshPanel(interaction, updated, controlChannel);
       return true;
     }
     if (action === 'limit')
@@ -265,7 +314,7 @@ async function handleVoiceRoomInteraction(interaction, prisma) {
         data: { userLimit },
       });
       await interaction.reply({ content: `User limit set to ${userLimit || 'unlimited'}.`, ephemeral: true });
-      await refreshPanel(interaction, updated, channel);
+      await refreshPanel(interaction, updated, controlChannel);
       return true;
     }
     if (action === 'rename') {
@@ -273,7 +322,7 @@ async function handleVoiceRoomInteraction(interaction, prisma) {
       if (!name) throw new Error('Enter a valid channel name.');
       await channel.setName(name);
       await interaction.reply({ content: `Room renamed to **${name}**.`, ephemeral: true });
-      await refreshPanel(interaction, room, channel);
+      await refreshPanel(interaction, room, controlChannel);
       return true;
     }
     if (action === 'transfer') {
@@ -290,7 +339,7 @@ async function handleVoiceRoomInteraction(interaction, prisma) {
         ViewChannel: true,
       });
       await interaction.reply({ content: `Ownership transferred to ${member}.`, ephemeral: true });
-      await refreshPanel(interaction, updated, channel);
+      await refreshPanel(interaction, updated, controlChannel);
       return true;
     }
     if (action === 'whitelist' || action === 'block') {
@@ -324,7 +373,7 @@ async function handleVoiceRoomInteraction(interaction, prisma) {
         content: `${member} ${action === 'whitelist' ? 'added to the whitelist.' : 'blocked from this room.'}`,
         ephemeral: true,
       });
-      await refreshPanel(interaction, updated, channel);
+      await refreshPanel(interaction, updated, controlChannel);
       return true;
     }
   }

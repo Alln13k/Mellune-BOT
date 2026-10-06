@@ -697,6 +697,29 @@ function TemporaryVoicePage() {
           />
         </Field>
       </Card>
+      <Card
+        title="Active voice rooms"
+        description="Persistent ownership records recovered by the bot after restart."
+      >
+        {feature.data.rooms?.length ? (
+          <ul className="list">
+            {feature.data.rooms.map((room) => (
+              <li key={room.id}>
+                <div className="list-main">
+                  <strong>{room.channelId}</strong>
+                  <span className="subtle">
+                    Owner {room.ownerId} · {room.privacy} · limit{' '}
+                    {room.userLimit || 'unlimited'}
+                  </span>
+                </div>
+                <time className="subtle">{formatDate(room.createdAt)}</time>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState icon={Mic} title="No active voice rooms" />
+        )}
+      </Card>
     </FeatureFrame>
   );
 }

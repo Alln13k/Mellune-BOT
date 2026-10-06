@@ -240,6 +240,23 @@ async function handleComponent(interaction, prisma) {
     return handleVoiceRoomInteraction(interaction, prisma);
   }
   const [action, rawId, extraId] = interaction.customId.split(':');
+  if (action === 'ticket-rate') {
+    const rating = Number(extraId);
+    if (rating < 1 || rating > 5) throw new Error('Invalid ticket rating.');
+    const ticket = await prisma.ticket.findFirst({
+      where: { id: Number(rawId) },
+    });
+    if (!ticket || ticket.creatorId !== interaction.user.id)
+      throw new Error('Only the ticket creator can submit this rating.');
+    await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { rating, ratedAt: new Date() },
+    });
+    return interaction.reply({
+      content: 'Thanks for rating your ticket.',
+      ephemeral: true,
+    });
+  }
   if (interaction.customId === 'ticket-close') {
     const ticket = await prisma.ticket.findUnique({
       where: { channelId: interaction.channel.id },
@@ -276,6 +293,26 @@ async function handleComponent(interaction, prisma) {
     await interaction.channel.permissionOverwrites
       .edit(ticket.creatorId, { ViewChannel: false })
       .catch(() => {});
+    const creator = await interaction.client.users
+      .fetch(ticket.creatorId)
+      .catch(() => null);
+    if (creator) {
+      await creator
+        .send({
+          content: `How was your experience with ticket #${ticket.id}?`,
+          components: [
+            new ActionRowBuilder().addComponents(
+              ...[1, 2, 3, 4, 5].map((rating) =>
+                new ButtonBuilder()
+                  .setCustomId(`ticket-rate:${ticket.id}:${rating}`)
+                  .setLabel('⭐'.repeat(rating))
+                  .setStyle(ButtonStyle.Secondary),
+              ),
+            ),
+          ],
+        })
+        .catch(() => {});
+    }
     return;
   }
   if (interaction.customId === 'ticket-transcript') {

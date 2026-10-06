@@ -53,6 +53,7 @@ export default function TicketBuilderPage() {
   const [panel, setPanel] = useState(DEFAULT_PANEL);
   const [categories, setCategories] = useState([blankCategory()]);
   const [panels, setPanels] = useState([]);
+  const [ticketFilter, setTicketFilter] = useState('');
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -146,6 +147,12 @@ export default function TicketBuilderPage() {
     setPanel({ ...DEFAULT_PANEL, panelKey: key, name: `Panel ${panels.length + 1}`, id: undefined });
     setCategories([blankCategory()]);
   }
+
+  const tickets = (data?.tickets || []).filter((ticket) =>
+    `${ticket.id} ${ticket.creatorId} ${ticket.type} ${ticket.status}`
+      .toLowerCase()
+      .includes(ticketFilter.toLowerCase()),
+  );
 
   return (
     <>
@@ -486,6 +493,63 @@ export default function TicketBuilderPage() {
                 </div>
               ))}
             </div>
+          </Card>
+          <Card
+            title="Ticket activity"
+            description="Live database records, limited to the latest 100 tickets."
+            action={
+              <input
+                aria-label="Search tickets"
+                placeholder="Search tickets…"
+                value={ticketFilter}
+                onChange={(event) => setTicketFilter(event.target.value)}
+              />
+            }
+          >
+            <div className="stats">
+              <div className="card stat">
+                <strong>{data?.stats?.total || 0}</strong>
+                <span>Total</span>
+              </div>
+              <div className="card stat">
+                <strong>{data?.stats?.open || 0}</strong>
+                <span>Open</span>
+              </div>
+              <div className="card stat">
+                <strong>{data?.stats?.closed || 0}</strong>
+                <span>Closed</span>
+              </div>
+              <div className="card stat">
+                <strong>
+                  {data?.stats?.averageRating
+                    ? Number(data.stats.averageRating).toFixed(1)
+                    : '—'}
+                </strong>
+                <span>Avg. rating</span>
+              </div>
+            </div>
+            {tickets.length ? (
+              <ul className="list">
+                {tickets.map((ticket) => (
+                  <li key={ticket.id}>
+                    <div className="list-main">
+                      <strong>
+                        #{ticket.id} · {ticket.type} · {ticket.status}
+                      </strong>
+                      <span className="subtle">
+                        {ticket.creatorId}
+                        {ticket.claimedBy ? ` · claimed by ${ticket.claimedBy}` : ''}
+                      </span>
+                    </div>
+                    <time className="subtle">
+                      {new Date(ticket.createdAt).toLocaleDateString()}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="subtle">No tickets match this search.</div>
+            )}
           </Card>
         </>
       )}

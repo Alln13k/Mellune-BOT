@@ -21,12 +21,18 @@ const DEFAULTS = {
 };
 
 const GET = featureRoute(async ({ guildId }) => {
-  const [config, resources] = await Promise.all([
+  const [config, rooms, resources] = await Promise.all([
     prisma.temporaryVoiceConfig.findUnique({ where: { guildId } }),
+    prisma.temporaryVoiceRoom.findMany({
+      where: { guildId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    }),
     getResources(guildId),
   ]);
   return response({
     config: { ...DEFAULTS, ...config },
+    rooms,
     channels: resources.channels,
   });
 });

@@ -39,6 +39,13 @@ async function handleVoiceStateUpdate(oldState, newState, prisma) {
       await prisma.temporaryVoiceRoom
         .delete({ where: { id: room.id } })
         .catch(() => {});
+      if (room.textChannelId) {
+        const textChannel = await guild.channels
+          .fetch(room.textChannelId)
+          .catch(() => null);
+        if (textChannel)
+          await textChannel.delete('Temporary voice room is empty').catch(() => {});
+      }
       await oldChannel.delete('Temporary voice channel is empty').catch(() => {});
     }
   }
@@ -60,12 +67,26 @@ async function cleanupTemporaryChannels(client) {
         await client.prisma.temporaryVoiceRoom
           .delete({ where: { id: room.id } })
           .catch(() => {});
+        if (room.textChannelId) {
+          const textChannel = await guild.channels
+            .fetch(room.textChannelId)
+            .catch(() => null);
+          if (textChannel)
+            await textChannel.delete('Cleaning orphaned voice room').catch(() => {});
+        }
         continue;
       }
       if (config?.autoDelete !== false && channel.members.size === 0) {
         await client.prisma.temporaryVoiceRoom
           .delete({ where: { id: room.id } })
           .catch(() => {});
+        if (room.textChannelId) {
+          const textChannel = await guild.channels
+            .fetch(room.textChannelId)
+            .catch(() => null);
+          if (textChannel)
+            await textChannel.delete('Temporary voice room is empty').catch(() => {});
+        }
         await channel
           .delete('Cleaning empty temporary voice channel')
           .catch(() => {});
