@@ -2,6 +2,7 @@ const { NextResponse } = require('next/server');
 const {
   exchangeCode,
   getUserContext,
+  joinMelluneGuild,
 } = require('../../../../lib/discordOAuth');
 const { getOAuthState, setSessionCookie } = require('../../../../lib/session');
 
@@ -19,6 +20,7 @@ async function GET(request) {
   try {
     const token = await exchangeCode(code);
     const context = await getUserContext(token.access_token);
+    await joinMelluneGuild(token.access_token, context.user.id);
     const headers = new Headers({ Location: '/dashboard' });
     await setSessionCookie(headers, {
       accessToken: token.access_token,

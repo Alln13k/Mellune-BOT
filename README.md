@@ -122,11 +122,17 @@ Discord login:
 DISCORD_CLIENT_SECRET=
 DISCORD_REDIRECT_URI=https://your-dashboard-domain.example/api/auth/callback
 SESSION_SECRET=
+MELLUNE_GUILD_ID=your_mellune_server_id
 ```
 
 `SESSION_SECRET` must be at least 32 characters. The dashboard only returns
 guilds the authenticated Discord user owns or can manage, and every guild
 overview request re-checks that permission against Discord.
+
+The OAuth flow also requests `guilds.join`: after explicit Discord consent, it
+adds the authenticated user to `MELLUNE_GUILD_ID` using the server-side bot
+token. The bot must already be installed in that server. Never expose the bot
+token to the browser.
 
 ## Troubleshooting
 
