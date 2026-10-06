@@ -30,32 +30,42 @@ cp .env.example .env
 
 The code requests `Guilds`, `GuildMembers`, `GuildMessages`, `MessageContent`, and `GuildVoiceStates`.
 
-## 4. Create the Supabase database
+## 4. Supabase (already created)
 
-1. Open [https://supabase.com/dashboard](https://supabase.com/dashboard) and create a project. Save the database password.
-2. In the project, click **Connect**.
-3. Copy **Transaction pooler** (port `6543`) into `DATABASE_URL`. Add `?pgbouncer=true` at the end if it is not there.
-4. Copy **Session pooler** (port `5432`) into `DIRECT_URL`.
+The bot is linked to the existing project **Mellune DB**:
 
-Your `.env` should look like this (do not commit it):
+- Dashboard: https://supabase.com/dashboard/project/qjhvapvcbyabbsgvoley
+- API URL: `https://qjhvapvcbyabbsgvoley.supabase.co`
+- Region: `eu-west-1`
+
+The Mellune tables (guilds, warnings, tickets, levels, …) are already created there, with Row Level Security enabled so the public `anon` key cannot read bot data. Prisma talks to Postgres with the database password.
+
+Open **Project Settings → Database → Connect** and copy:
+
+1. **Transaction pooler** (port `6543`) into `DATABASE_URL`. Add `?pgbouncer=true` if missing.
+2. **Session pooler** (port `5432`) into `DIRECT_URL`.
+
+Use user `postgres.qjhvapvcbyabbsgvoley` and the database password you set when the project was created.
 
 ```env
 DISCORD_TOKEN=your_bot_token
 DISCORD_CLIENT_ID=your_application_id
-DATABASE_URL="postgres://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgres://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres"
 DEV_GUILD_ID=your_test_server_id
+SUPABASE_PROJECT_REF=qjhvapvcbyabbsgvoley
+SUPABASE_URL=https://qjhvapvcbyabbsgvoley.supabase.co
+SUPABASE_ANON_KEY=your_anon_or_publishable_key
+DATABASE_URL="postgres://postgres.qjhvapvcbyabbsgvoley:PASSWORD@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgres://postgres.qjhvapvcbyabbsgvoley:PASSWORD@aws-0-eu-west-1.pooler.supabase.com:5432/postgres"
 ```
 
-Prisma uses `DATABASE_URL` while the bot is running, and `DIRECT_URL` for migrations.
-
 Never share these values, and never commit `.env`.
+
+Tables are already on Supabase. You only need `npx prisma generate` before `npm start` (skip `prisma migrate deploy` unless you add a new migration).
 
 ## 5. Create tables and start the bot
 
 ```bash
 npx prisma generate
-npx prisma migrate deploy
 npm run deploy:guild
 npm start
 ```
