@@ -97,15 +97,6 @@ export default function TicketBuilderPage() {
         },
       },
     }));
-  const setEmbedValue = (key) => (event) =>
-    setPanel((current) => ({
-      ...current,
-      payload: {
-        ...(current.payload || {}),
-        [key]: event.target.type === 'checkbox' ? event.target.checked : event.target.value,
-      },
-    }));
-
   function updateCategory(index, key, value) {
     setCategories((items) =>
       items.map((item, itemIndex) =>
