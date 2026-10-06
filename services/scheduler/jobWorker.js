@@ -149,8 +149,19 @@ async function executeJob(client, job) {
       EmbedBuilder,
     } = require('discord.js');
     const form = await client.prisma.applicationForm.findFirst({
-      where: { id: payload.formId, guildId: job.guildId, enabled: true },
-      include: { questions: { orderBy: { position: 'asc' }, take: 5 } },
+      where: {
+        id: payload.formId,
+        guildId: job.guildId,
+        enabled: true,
+        deletedAt: null,
+      },
+      include: {
+        questions: {
+          where: { deletedAt: null },
+          orderBy: { position: 'asc' },
+          take: 5,
+        },
+      },
     });
     if (!form || !form.destinationChannelId) {
       throw new Error('Application form is no longer publishable.');

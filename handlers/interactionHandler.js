@@ -19,6 +19,10 @@ const { MELLUNE_DEFAULT_COLOR_INT } = require('../utils/embeds');
 const {
   handleVoiceRoomInteraction,
 } = require('../services/voice/voiceRoomService');
+const {
+  createSubmission,
+  questionPlaceholder,
+} = require('../services/applications/applicationService');
 
 const ticketCreationLocks = new Set();
 
@@ -547,8 +551,15 @@ async function handleComponent(interaction, prisma) {
         id: Number(rawId),
         guildId: interaction.guild.id,
         enabled: true,
+        deletedAt: null,
       },
-      include: { questions: { orderBy: { position: 'asc' }, take: 5 } },
+      include: {
+        questions: {
+          where: { deletedAt: null },
+          orderBy: { position: 'asc' },
+          take: 5,
+        },
+      },
     });
     if (!form) throw new Error('This application form is no longer active.');
     const modal = new ModalBuilder()
@@ -560,9 +571,13 @@ async function handleComponent(interaction, prisma) {
           new TextInputBuilder()
             .setCustomId(`question-${question.id}`)
             .setLabel(question.label.slice(0, 45))
-            .setPlaceholder(question.prompt.slice(0, 100))
+            .setPlaceholder(questionPlaceholder(question).slice(0, 100))
             .setRequired(question.required)
-            .setStyle(TextInputStyle.Paragraph),
+            .setStyle(
+              question.type === 'LONG_TEXT' || question.type === 'MULTIPLE_CHOICE'
+                ? TextInputStyle.Paragraph
+                : TextInputStyle.Short,
+            ),
         ),
       ),
     );
@@ -574,52 +589,48 @@ async function handleComponent(interaction, prisma) {
         id: Number(rawId),
         guildId: interaction.guild.id,
         enabled: true,
+        deletedAt: null,
       },
-      include: { questions: true },
-    });
-    if (!form) throw new Error('This application form is no longer active.');
-    const submission = await prisma.applicationSubmission.create({
-      data: {
-        guildId: interaction.guild.id,
-        formId: form.id,
-        userId: interaction.user.id,
-        answers: {
-          create: form.questions
-            .map((question) => ({
-              questionId: question.id,
-              answer: interaction.fields.getTextInputValue(
-                `question-${question.id}`,
-              ),
-            }))
-            .filter((answer) => answer.answer),
+      include: {
+        questions: {
+          where: { deletedAt: null },
+          orderBy: { position: 'asc' },
+          take: 5,
         },
       },
     });
-    const destination = form.destinationChannelId
+    if (!form) throw new Error('This application form is no longer active.');
+    const answers = new Map(
+      form.questions.map((question) => [
+        question.id,
+        interaction.fields.getTextInputValue(`question-${question.id}`),
+      ]),
+    );
+    const submission = await createSubmission(prisma, {
+      form,
+      member: interaction.member,
+      user: interaction.user,
+      answers,
+    });
+    const notification = form.notificationChannelId
       ? await interaction.guild.channels
-          .fetch(form.destinationChannelId)
+          .fetch(form.notificationChannelId)
           .catch(() => null)
       : null;
-    if (destination?.isTextBased()) {
-      await destination.send({
+    if (notification?.isTextBased()) {
+      await notification.send({
         embeds: [
           new EmbedBuilder()
             .setColor(MELLUNE_DEFAULT_COLOR_INT)
-            .setTitle(`Application: ${form.title}`)
+            .setTitle(`New ${form.title}`)
             .setDescription(
-              `From ${interaction.user} · Submission #${submission.id}`,
+              `📩 New application received\n\n**Applicant:** ${interaction.user}\n**Status:** 🟡 Pending\n**Submission:** #${submission.id}`,
             )
-            .addFields(
-              form.questions.map((question) => ({
-                name: question.label,
-                value:
-                  interaction.fields
-                    .getTextInputValue(`question-${question.id}`)
-                    .slice(0, 1024) || 'No answer',
-              })),
-            ),
+            .setFooter({ text: 'Review the complete application in the Mellune Dashboard.' }),
         ],
-      });
+      }).catch((error) =>
+        console.error('Application notification failed:', error.message),
+      );
     }
     return interaction.reply({
       content: 'Your application was submitted.',

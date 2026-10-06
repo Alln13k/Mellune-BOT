@@ -889,6 +889,121 @@ code.chip {
   flex-wrap: wrap;
 }
 
+.application-type-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.application-type-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.application-type-card:hover {
+  border-color: rgba(185, 167, 255, 0.5);
+  background: var(--lavender-soft);
+}
+
+.application-type-counts {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.field-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.field-inline input {
+  min-width: 132px;
+}
+
+.application-status {
+  cursor: default;
+  font-weight: 700;
+}
+
+.status-pending {
+  border-color: rgba(246, 211, 122, 0.45);
+  color: #f6d37a;
+}
+
+.status-approved {
+  border-color: rgba(155, 227, 192, 0.45);
+  color: var(--green);
+}
+
+.status-rejected {
+  border-color: rgba(239, 180, 216, 0.45);
+  color: var(--pink);
+}
+
+.applicant {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 190px;
+}
+
+.application-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.application-answer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.application-answer {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.application-answer p {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.application-preview-question {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.application-question-actions {
+  align-items: flex-end;
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;
