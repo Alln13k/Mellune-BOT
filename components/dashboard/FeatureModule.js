@@ -728,8 +728,6 @@ function RolesPage() {
         entries: saved.entries?.length ? saved.entries : panel.entries,
       });
     }
-    // Load the persisted menu once the feature endpoint responds.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feature.data]);
   const updateEntry = (index, key, value) =>
     setPanel((current) => ({

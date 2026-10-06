@@ -1,7 +1,6 @@
 const { prisma } = require('../../../../../database/client');
 const { color } = require('../../../../../lib/validate');
 const {
-  cleanEmbed,
   featureRoute,
   getResources,
   queueJob,

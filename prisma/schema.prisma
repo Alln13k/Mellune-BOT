@@ -416,7 +416,7 @@ model TemporaryVoiceConfig {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   guild            Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  rooms            TemporaryVoiceRoom[]
+  rooms            TemporaryVoiceRoom[] @relation("TemporaryVoiceRoomConfig")
 }
 
 model TemporaryVoiceRoom {
@@ -433,7 +433,7 @@ model TemporaryVoiceRoom {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  config         TemporaryVoiceConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
+  config         TemporaryVoiceConfig @relation("TemporaryVoiceRoomConfig", fields: [guildId], references: [guildId], onDelete: Cascade, map: "TemporaryVoiceRoom_config_guildId_fkey")
 
   @@index([guildId, ownerId])
   @@index([guildId, privacy])
