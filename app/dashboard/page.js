@@ -1,233 +1,160 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
+import {
+  Gavel,
+  LayoutDashboard,
+  ShieldAlert,
+  Ticket,
+  TriangleAlert,
+  Users,
+} from 'lucide-react';
+import ActivityChart from '../../components/dashboard/ActivityChart';
+import {
+  useDashboard,
+  useGuildData,
+} from '../../components/dashboard/DashboardContext';
+import {
+  Card,
+  EmptyState,
+  ErrorNotice,
+  PageHeader,
+  Skeleton,
+  StatCard,
+  formatRelative,
+} from '../../components/dashboard/ui';
 
-const navigation = [
-  ['Overview', '⌂'],
-  ['Moderation', '◈'],
-  ['AutoMod', '✦'],
-  ['Tickets', '□'],
-  ['Welcome', '☼'],
-  ['Roles', '♢'],
-  ['Verification', '✓'],
-  ['Leveling', '↗'],
-  ['Giveaways', '◇'],
-  ['Suggestions', '✎'],
-  ['Applications', '▤'],
-  ['Analytics', '⌁'],
-  ['Logs', '≡'],
-  ['Settings', '⚙'],
+const RANGES = [
+  ['24h', '24 hours'],
+  ['7d', '7 days'],
+  ['30d', '30 days'],
 ];
 
-async function readJson(url) {
-  const response = await fetch(url);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Request failed.');
-  return data;
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 6) return 'Still up';
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
 }
 
-function formatDate(value) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
-
-export default function DashboardPage() {
-  const [session, setSession] = useState(null);
-  const [guilds, setGuilds] = useState([]);
-  const [guildId, setGuildId] = useState('');
-  const [overview, setOverview] = useState(null);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    readJson('/api/auth/session')
-      .then(setSession)
-      .catch((requestError) => setError(requestError.message));
-  }, []);
-
-  useEffect(() => {
-    if (!session) return;
-    readJson('/api/guilds')
-      .then((data) => {
-        setGuilds(data.guilds);
-        if (data.guilds[0]) setGuildId(data.guilds[0].id);
-      })
-      .catch((requestError) => setError(requestError.message));
-  }, [session]);
-
-  useEffect(() => {
-    if (!guildId) return;
-    readJson(`/api/guilds/${guildId}/overview`)
-      .then(setOverview)
-      .catch((requestError) => setError(requestError.message));
-  }, [guildId]);
-
-  const selectedGuild = useMemo(
-    () => guilds.find((guild) => guild.id === guildId),
-    [guildId, guilds],
+export default function OverviewPage() {
+  const { user, guild } = useDashboard();
+  const [range, setRange] = useState('7d');
+  const { data, error, loading, reload } = useGuildData(
+    `overview?range=${range}`,
   );
-
-  if (error) {
-    return (
-      <main className="landing">
-        <section className="hero">
-          <div className="eyebrow">Mellune / access</div>
-          <h1>We could not open your console.</h1>
-          <p className="error">{error}</p>
-          <a className="button" href="/api/auth/login">
-            Try Discord login again
-          </a>
-        </section>
-      </main>
-    );
-  }
-
-  if (!session) {
-    return (
-      <main className="landing">
-        <section className="hero">
-          <div className="eyebrow">Mellune / loading</div>
-          <h1>Opening your console…</h1>
-          <p>Verifying your Discord session securely on the server.</p>
-        </section>
-      </main>
-    );
-  }
+  const name = user?.global_name || user?.username;
 
   return (
-    <div className="dashboard">
-      <aside className="sidebar">
-        <a className="brand" href="/dashboard">
-          <span className="brand-mark">☾</span>
-          mellune
-        </a>
-        <select
-          className="server-picker"
-          value={guildId}
-          onChange={(event) => setGuildId(event.target.value)}
-          aria-label="Select a Discord server"
-        >
-          {guilds.map((guild) => (
-            <option key={guild.id} value={guild.id}>
-              {guild.name}
-            </option>
-          ))}
-        </select>
-        <nav className="nav" aria-label="Dashboard navigation">
-          <div className="nav-label">Workspace</div>
-          {navigation.map(([label, icon], index) => (
-            <a
-              className={`nav-link ${index === 0 ? 'active' : ''}`}
-              href={index === 0 ? '#overview' : `#${label.toLowerCase()}`}
-              key={label}
-            >
-              <span aria-hidden="true">{icon}</span>
-              {label}
-            </a>
-          ))}
-        </nav>
-        <div className="profile">
-          <span className="avatar">
-            {session.user?.username?.slice(0, 1).toUpperCase()}
-          </span>
-          <div>
-            <strong>
-              {session.user?.global_name || session.user?.username}
-            </strong>
-            <div className="subtle">Discord account</div>
-          </div>
-        </div>
-      </aside>
-      <main className="main" id="overview">
-        <header className="topbar">
-          <div>
-            <div className="kicker">
-              Overview / {selectedGuild?.name || 'server'}
-            </div>
-            <h1>Good evening.</h1>
-            <p className="subtle">
-              A quiet snapshot of what is happening in your community.
-            </p>
-          </div>
-          <button
-            className="button"
-            onClick={async () => {
-              await fetch('/api/auth/logout', { method: 'POST' });
-              window.location.href = '/';
-            }}
-          >
-            Log out
-          </button>
-        </header>
-        {!overview ? (
-          <p className="subtle">Loading server activity…</p>
-        ) : (
+    <>
+      <PageHeader
+        icon={LayoutDashboard}
+        title={name ? `${greeting()}, ${name}.` : `${greeting()}.`}
+        description={`A quiet snapshot of ${guild?.name ?? 'your community'}.`}
+      />
+      {error && <ErrorNotice onRetry={reload}>{error}</ErrorNotice>}
+
+      <section className="stats" aria-label="Server statistics">
+        {data ? (
           <>
-            <section className="stats" aria-label="Server statistics">
-              {[
-                ['Tracked members', overview.stats.members],
-                ['Open tickets', overview.stats.openTickets],
-                ['Warnings', overview.stats.warnings],
-                ['Moderation cases', overview.stats.cases],
-              ].map(([label, value]) => (
-                <article className="card stat" key={label}>
-                  <div className="stat-label">{label}</div>
-                  <div className="stat-value">{value.toLocaleString()}</div>
-                </article>
-              ))}
-            </section>
-            <section className="content-grid">
-              <article className="card panel">
-                <div className="section-heading">
-                  <div>
-                    <h2>Recent moderation</h2>
-                    <p className="subtle">
-                      The latest cases recorded by Mellune.
-                    </p>
-                  </div>
-                  <span className="pill">Live database</span>
-                </div>
-                {overview.recentCases.length ? (
-                  overview.recentCases.map((item) => (
-                    <div className="case" key={item.id}>
-                      <div>
-                        <strong>Case #{item.id}</strong>
-                        <div className="subtle">
-                          {item.action} · {item.reason}
-                        </div>
-                      </div>
-                      <time className="subtle">
-                        {formatDate(item.createdAt)}
-                      </time>
-                    </div>
-                  ))
-                ) : (
-                  <p className="empty">No moderation cases yet.</p>
-                )}
-              </article>
-              <article className="card panel">
-                <h2>Workspace signal</h2>
-                <p className="subtle">
-                  A few useful signals from the current server.
-                </p>
-                <div className="case">
-                  <span>Leveling members</span>
-                  <strong>{overview.stats.activeLevelUsers}</strong>
-                </div>
-                <div className="case">
-                  <span>Database</span>
-                  <span className="pill">Connected</span>
-                </div>
-                <div className="case">
-                  <span>Guild isolation</span>
-                  <span className="pill">Verified</span>
-                </div>
-              </article>
-            </section>
+            <StatCard
+              icon={Users}
+              label="Tracked members"
+              value={data.stats.members}
+            />
+            <StatCard
+              icon={Ticket}
+              label="Open tickets"
+              value={data.stats.openTickets}
+              tone="green"
+            />
+            <StatCard
+              icon={TriangleAlert}
+              label="Warnings"
+              value={data.stats.warnings}
+              tone="pink"
+            />
+            <StatCard
+              icon={Gavel}
+              label="Moderation cases"
+              value={data.stats.cases}
+              tone="pink"
+            />
           </>
+        ) : (
+          [0, 1, 2, 3].map((key) => (
+            <div className="card stat" key={key}>
+              <Skeleton height={44} />
+            </div>
+          ))
         )}
-      </main>
-    </div>
+      </section>
+
+      <div className="grid-2">
+        <Card
+          title="Activity"
+          description="New members, moderation and tickets over time."
+          action={
+            <div className="segmented" role="group" aria-label="Time range">
+              {RANGES.map(([value, label]) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={range === value ? 'is-active' : ''}
+                  aria-pressed={range === value}
+                  onClick={() => setRange(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          {data ? (
+            <div className={loading ? 'is-refreshing' : undefined}>
+              <ActivityChart series={data.activity} range={data.range} />
+            </div>
+          ) : (
+            <Skeleton height={240} />
+          )}
+        </Card>
+
+        <Card
+          title="Recent moderation"
+          description="The latest cases recorded by Mellune."
+        >
+          {!data ? (
+            <Skeleton height={180} />
+          ) : data.recentCases.length ? (
+            <ul className="list">
+              {data.recentCases.map((item) => (
+                <li key={item.id}>
+                  <span className="icon-tile" aria-hidden="true">
+                    <ShieldAlert size={18} strokeWidth={1.75} />
+                  </span>
+                  <div className="list-main">
+                    <strong>
+                      #{item.id} · {item.action}
+                    </strong>
+                    <span className="subtle clamp">
+                      {item.targetName ? `${item.targetName} · ` : ''}
+                      {item.reason}
+                    </span>
+                  </div>
+                  <time className="subtle" dateTime={item.createdAt}>
+                    {formatRelative(item.createdAt)}
+                  </time>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState icon={Gavel} title="Nothing to review">
+              No moderation cases have been recorded yet.
+            </EmptyState>
+          )}
+        </Card>
+      </div>
+    </>
   );
 }

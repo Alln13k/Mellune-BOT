@@ -1,5 +1,6 @@
 const js = require('@eslint/js');
 const { globalIgnores } = require('eslint/config');
+const react = require('eslint-plugin-react');
 
 module.exports = [
   globalIgnores(['**/node_modules/**', '**/.next/**', '**/prisma/**']),
@@ -24,7 +25,12 @@ module.exports = [
     rules: { 'no-unused-vars': ['error', { argsIgnorePattern: '^_' }] },
   },
   {
-    files: ['app/**/*.js'],
+    files: ['app/**/*.js', 'components/**/*.js'],
+    plugins: { react },
+    rules: {
+      'react/jsx-uses-vars': 'error',
+      'react/jsx-no-undef': 'error',
+    },
     languageOptions: {
       sourceType: 'module',
       parserOptions: { ecmaFeatures: { jsx: true } },
@@ -36,6 +42,11 @@ module.exports = [
         URL: 'readonly',
         URLSearchParams: 'readonly',
         window: 'readonly',
+        document: 'readonly',
+        Intl: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        AbortController: 'readonly',
       },
     },
   },

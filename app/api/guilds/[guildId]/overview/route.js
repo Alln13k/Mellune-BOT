@@ -1,53 +1,85 @@
 const { NextResponse } = require('next/server');
 const { prisma } = require('../../../../../database/client');
-const { requireGuildAccess } = require('../../../../../lib/apiAuth');
+const { guildRoute } = require('../../../../../lib/guildRoute');
+const {
+  bucketize,
+  getRangeStart,
+  parseRange,
+} = require('../../../../../lib/analytics');
 
-async function GET(request, { params }) {
-  const { guildId } = await params;
-  const authorization = await requireGuildAccess(request, guildId);
-  if (authorization.error) {
-    return NextResponse.json(
-      { error: authorization.error },
-      { status: authorization.status },
-    );
+const GET = guildRoute(async ({ request, guildId }) => {
+  const range = parseRange(new URL(request.url).searchParams.get('range'));
+  const since = getRangeStart(range);
+  const inRange = { guildId, createdAt: { gte: since } };
+
+  const [
+    guild,
+    members,
+    warnings,
+    cases,
+    openTickets,
+    levelUsers,
+    recentCases,
+    caseDates,
+    ticketDates,
+    memberDates,
+  ] = await Promise.all([
+    prisma.guild.findUnique({ where: { id: guildId } }),
+    prisma.user.count({ where: { guildId } }),
+    prisma.warning.count({ where: { guildId } }),
+    prisma.moderationCase.count({ where: { guildId } }),
+    prisma.ticket.count({ where: { guildId, status: 'OPEN' } }),
+    prisma.levelUser.count({ where: { guildId } }),
+    prisma.moderationCase.findMany({
+      where: { guildId },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+      include: { target: { select: { username: true } } },
+    }),
+    prisma.moderationCase.findMany({
+      where: inRange,
+      select: { createdAt: true },
+    }),
+    prisma.ticket.findMany({ where: inRange, select: { createdAt: true } }),
+    prisma.user.findMany({ where: inRange, select: { createdAt: true } }),
+  ]);
+  if (!guild) {
+    return NextResponse.json({ error: 'Guild not found.' }, { status: 404 });
   }
 
-  try {
-    const [guild, members, warnings, cases, tickets, levelUsers, recentCases] =
-      await Promise.all([
-        prisma.guild.findUnique({ where: { id: guildId } }),
-        prisma.user.count({ where: { guildId } }),
-        prisma.warning.count({ where: { guildId } }),
-        prisma.moderationCase.count({ where: { guildId } }),
-        prisma.ticket.count({ where: { guildId, status: 'OPEN' } }),
-        prisma.levelUser.count({ where: { guildId } }),
-        prisma.moderationCase.findMany({
-          where: { guildId },
-          orderBy: { createdAt: 'desc' },
-          take: 8,
-        }),
-      ]);
-    if (!guild) {
-      return NextResponse.json({ error: 'Guild not found.' }, { status: 404 });
-    }
-    return NextResponse.json({
-      guild,
-      stats: {
-        members,
-        warnings,
-        cases,
-        openTickets: tickets,
-        activeLevelUsers: levelUsers,
+  const toDates = (rows) => rows.map((row) => row.createdAt);
+  return NextResponse.json({
+    guild,
+    range,
+    stats: {
+      members,
+      warnings,
+      cases,
+      openTickets,
+      activeLevelUsers: levelUsers,
+    },
+    activity: [
+      {
+        key: 'members',
+        label: 'New members',
+        points: bucketize(toDates(memberDates), range),
       },
-      recentCases,
-    });
-  } catch (error) {
-    console.error('Dashboard overview failed:', error.message);
-    return NextResponse.json(
-      { error: 'Could not load overview.' },
-      { status: 500 },
-    );
-  }
-}
+      {
+        key: 'cases',
+        label: 'Moderation',
+        points: bucketize(toDates(caseDates), range),
+      },
+      {
+        key: 'tickets',
+        label: 'Tickets',
+        points: bucketize(toDates(ticketDates), range),
+      },
+    ],
+    recentCases: recentCases.map(({ target, ...item }) => ({
+      ...item,
+      targetName: target?.username ?? null,
+    })),
+  });
+});
 
 module.exports = { GET };

@@ -1,6 +1,7 @@
 const { NextResponse } = require('next/server');
+const { snowflake } = require('../../../../../lib/validate');
 const { prisma } = require('../../../../../database/client');
-const { requireGuildAccess } = require('../../../../../lib/apiAuth');
+const { guildRoute, badRequest } = require('../../../../../lib/guildRoute');
 
 const DEFAULT_CATEGORIES = [
   {
@@ -33,17 +34,13 @@ function cleanColor(value, fallback) {
 
 function cleanCategory(category) {
   return {
+    id: Number.isInteger(category.id) ? category.id : null,
     name: cleanText(category.name, 'Untitled', 48),
     description: cleanText(category.description, 'A new support request.', 240),
     emoji: cleanText(category.emoji, '✦', 8),
-    discordCategoryId:
-      typeof category.discordCategoryId === 'string'
-        ? category.discordCategoryId.slice(0, 32)
-        : null,
+    discordCategoryId: snowflake(category.discordCategoryId),
     staffRoleIds: Array.isArray(category.staffRoleIds)
-      ? category.staffRoleIds
-          .filter((id) => typeof id === 'string')
-          .slice(0, 20)
+      ? category.staffRoleIds.map(snowflake).filter(Boolean).slice(0, 20)
       : [],
     color: cleanColor(category.color, '#b9a7ff'),
     cooldownSeconds: Math.min(
@@ -58,16 +55,7 @@ function cleanCategory(category) {
   };
 }
 
-async function GET(request, { params }) {
-  const { guildId } = await params;
-  const authorization = await requireGuildAccess(request, guildId);
-  if (authorization.error) {
-    return NextResponse.json(
-      { error: authorization.error },
-      { status: authorization.status },
-    );
-  }
-
+const GET = guildRoute(async ({ guildId }) => {
   const [panel, categories] = await Promise.all([
     prisma.ticketPanel.findUnique({ where: { guildId } }),
     prisma.ticketCategory.findMany({
@@ -76,28 +64,25 @@ async function GET(request, { params }) {
     }),
   ]);
   return NextResponse.json({ panel, categories });
-}
+});
 
-async function POST(request, { params }) {
-  const { guildId } = await params;
-  const authorization = await requireGuildAccess(request, guildId);
-  if (authorization.error) {
-    return NextResponse.json(
-      { error: authorization.error },
-      { status: authorization.status },
-    );
-  }
-
+const POST = guildRoute(async ({ request, guildId }) => {
   let body;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
+    return badRequest('Invalid JSON body.');
   }
 
-  const categories = Array.isArray(body.categories)
-    ? body.categories.slice(0, 20).map(cleanCategory)
-    : DEFAULT_CATEGORIES.map(cleanCategory);
+  const categories = (
+    Array.isArray(body.categories) ? body.categories : DEFAULT_CATEGORIES
+  )
+    .slice(0, 20)
+    .map(cleanCategory);
+  const names = new Set(categories.map((category) => category.name));
+  if (names.size !== categories.length) {
+    return badRequest('Category names must be unique.');
+  }
   const panelData = {
     title: cleanText(body.title, 'Need a hand?', 120),
     description: cleanText(
@@ -124,19 +109,34 @@ async function POST(request, { params }) {
       update: panelData,
       create: { guildId, ...panelData },
     });
-    for (const category of categories) {
-      await transaction.ticketCategory.upsert({
-        where: { guildId_name: { guildId, name: category.name } },
-        update: { ...category, panelId: panel.id },
-        create: { guildId, panelId: panel.id, ...category },
-      });
+    const keptIds = [];
+    for (const { id, ...category } of categories) {
+      const existing = id
+        ? await transaction.ticketCategory.findFirst({
+            where: { id, guildId },
+          })
+        : null;
+      const saved = existing
+        ? await transaction.ticketCategory.update({
+            where: { id: existing.id },
+            data: { ...category, panelId: panel.id },
+          })
+        : await transaction.ticketCategory.upsert({
+            where: { guildId_name: { guildId, name: category.name } },
+            update: { ...category, panelId: panel.id },
+            create: { guildId, panelId: panel.id, ...category },
+          });
+      keptIds.push(saved.id);
     }
+    await transaction.ticketCategory.deleteMany({
+      where: { guildId, id: { notIn: keptIds } },
+    });
     return transaction.ticketPanel.findUnique({
       where: { id: panel.id },
       include: { categories: { orderBy: { createdAt: 'asc' } } },
     });
   });
   return NextResponse.json(result, { status: 200 });
-}
+});
 
 module.exports = { GET, POST };

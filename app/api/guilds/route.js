@@ -1,32 +1,26 @@
 const { NextResponse } = require('next/server');
 const { prisma } = require('../../../database/client');
-const { getSession } = require('../../../lib/session');
-const { verifyMelluneOwnerRole } = require('../../../lib/discordOAuth');
+const { requireOwner } = require('../../../lib/apiAuth');
 
 async function GET(request) {
-  const session = await getSession(request);
-  if (!session?.accessToken) {
+  const authorization = await requireOwner(request);
+  if (authorization.error) {
     return NextResponse.json(
-      { error: 'Authentication required.' },
-      { status: 401 },
+      { error: authorization.error },
+      { status: authorization.status },
     );
   }
   try {
-    if (!(await verifyMelluneOwnerRole(session.user.id))) {
-      return NextResponse.json(
-        { error: 'You need the Mellune owner role.' },
-        { status: 403 },
-      );
-    }
     const guild = await prisma.guild.findUnique({
       where: { id: process.env.MELLUNE_GUILD_ID },
       select: { id: true, name: true },
     });
     return NextResponse.json({ guilds: guild ? [guild] : [] });
-  } catch {
+  } catch (error) {
+    console.error('Guild lookup failed:', error.message);
     return NextResponse.json(
-      { error: 'Mellune role authorization could not be verified.' },
-      { status: 502 },
+      { error: 'Could not load your servers.' },
+      { status: 500 },
     );
   }
 }

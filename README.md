@@ -136,6 +136,19 @@ token, then checks that the member has `MELLUNE_OWNER_ROLE_ID` before creating
 a dashboard session. The bot must already be installed in that server and be
 able to view members. Never expose the bot token to the browser.
 
+### Dashboard sections
+
+The sidebar groups every module. These pages are wired to the bot and database:
+
+- **Overview**: totals plus an activity chart (24 hours, 7 days, 30 days).
+- **Moderation**: searchable, filterable, paginated case history.
+- **Tickets**: ticket panel and category builder with live preview. The settings are saved; the bot does not post the panel yet.
+- **Welcome**: join/leave messages, DM option and auto-role, used by the bot's `guildMemberAdd` / `guildMemberRemove` events. Placeholders: `{user}`, `{username}`, `{server}`, `{memberCount}`, `{userId}`.
+- **Leveling**: toggles XP and shows the leaderboard.
+- **Settings**: account and server details.
+
+Other sections show a "being built" page until the bot supports them. Icons come from `lucide-react`.
+
 ## Troubleshooting
 
 **Missing environment variables**: copy `.env.example` to `.env` and fill `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, and `DATABASE_URL` (a `postgresql://` URL). `DEV_GUILD_ID` is required by `npm run deploy:guild`.
