@@ -25,6 +25,11 @@ const DEFAULT_PANEL = {
   color: '#3C527F',
   emoji: '☾',
   footer: '',
+  payload: {
+    color: '#3C527F',
+    fields: [],
+    timestamp: false,
+  },
   buttonLabel: 'Open ticket',
   buttonStyle: 'SECONDARY',
   buttonEmoji: '🎫',
@@ -62,7 +67,12 @@ export default function TicketBuilderPage() {
     const savedPanels = data.panels || (data.panel ? [data.panel] : []);
     setPanels(savedPanels);
     const selected = savedPanels[0];
-    if (selected) setPanel({ ...DEFAULT_PANEL, ...selected });
+    if (selected)
+      setPanel({
+        ...DEFAULT_PANEL,
+        ...selected,
+        payload: selected.payload || DEFAULT_PANEL.payload,
+      });
     setCategories(
       selected?.categories?.length
         ? selected.categories.map((category) => ({
@@ -76,6 +86,25 @@ export default function TicketBuilderPage() {
 
   const setPanelField = (key) => (event) =>
     setPanel((current) => ({ ...current, [key]: event.target.value }));
+  const setEmbedField = (section, key) => (event) =>
+    setPanel((current) => ({
+      ...current,
+      payload: {
+        ...(current.payload || {}),
+        [section]: {
+          ...(current.payload?.[section] || {}),
+          [key]: event.target.value,
+        },
+      },
+    }));
+  const setEmbedValue = (key) => (event) =>
+    setPanel((current) => ({
+      ...current,
+      payload: {
+        ...(current.payload || {}),
+        [key]: event.target.type === 'checkbox' ? event.target.checked : event.target.value,
+      },
+    }));
 
   function updateCategory(index, key, value) {
     setCategories((items) =>
@@ -144,7 +173,13 @@ export default function TicketBuilderPage() {
 
   function newPanel() {
     const key = `panel-${panels.length + 1}`;
-    setPanel({ ...DEFAULT_PANEL, panelKey: key, name: `Panel ${panels.length + 1}`, id: undefined });
+    setPanel({
+      ...DEFAULT_PANEL,
+      payload: { ...DEFAULT_PANEL.payload },
+      panelKey: key,
+      name: `Panel ${panels.length + 1}`,
+      id: undefined,
+    });
     setCategories([blankCategory()]);
   }
 
@@ -296,6 +331,57 @@ export default function TicketBuilderPage() {
                 />
               </Field>
               <div className="form-row">
+                <Field label="Author">
+                  <input
+                    value={panel.payload?.author?.name || ''}
+                    maxLength={256}
+                    onChange={setEmbedField('author', 'name')}
+                  />
+                </Field>
+                <Field label="Author icon URL">
+                  <input
+                    value={panel.payload?.author?.iconUrl || ''}
+                    maxLength={500}
+                    onChange={setEmbedField('author', 'iconUrl')}
+                  />
+                </Field>
+              </div>
+              <div className="form-row">
+                <Field label="Thumbnail URL">
+                  <input
+                    value={panel.payload?.thumbnail?.url || ''}
+                    maxLength={500}
+                    onChange={setEmbedField('thumbnail', 'url')}
+                  />
+                </Field>
+                <Field label="Image URL">
+                  <input
+                    value={panel.payload?.image?.url || ''}
+                    maxLength={500}
+                    onChange={setEmbedField('image', 'url')}
+                  />
+                </Field>
+              </div>
+              <div className="form-row">
+                <Field label="Embed footer">
+                  <input
+                    value={panel.payload?.footer?.text || ''}
+                    maxLength={2048}
+                    onChange={setEmbedField('footer', 'text')}
+                  />
+                </Field>
+                <Toggle
+                  label="Timestamp"
+                  checked={panel.payload?.timestamp === true}
+                  onChange={(value) =>
+                    setPanel((current) => ({
+                      ...current,
+                      payload: { ...(current.payload || {}), timestamp: value },
+                    }))
+                  }
+                />
+              </div>
+              <div className="form-row">
                 <Field label="Button label">
                   <input
                     value={panel.buttonLabel}
@@ -340,12 +426,22 @@ export default function TicketBuilderPage() {
             >
               <div
                 className="embed-preview"
-                style={{ '--accent': panel.color }}
+                style={{ '--accent': panel.payload?.color || panel.color }}
               >
                 <h3>
-                  {panel.emoji} {panel.title || 'Need a hand?'}
+                  {panel.emoji} {panel.payload?.title || panel.title || 'Need a hand?'}
                 </h3>
-                <p>{panel.description}</p>
+                <p>{panel.payload?.description || panel.description}</p>
+                {panel.payload?.author?.name && (
+                  <small>{panel.payload.author.name}</small>
+                )}
+                {panel.payload?.image?.url && (
+                  <img
+                    src={panel.payload.image.url}
+                    alt=""
+                    className="preview-image"
+                  />
+                )}
                 <div className="preview-buttons">
                   {categories
                     .filter((category) => category.enabled)

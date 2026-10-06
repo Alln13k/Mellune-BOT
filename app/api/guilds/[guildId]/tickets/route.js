@@ -160,7 +160,18 @@ const POST = guildRoute(async ({ request, guildId }) => {
         : null,
     payload:
       body.payload && typeof body.payload === 'object'
-        ? cleanEmbed(body.payload)
+        ? cleanEmbed({
+            ...body.payload,
+            title: body.payload.title || cleanText(body.title, 'Need a hand?', 120),
+            description:
+              body.payload.description ||
+              cleanText(
+                body.description,
+                'Choose a category below and our team will be with you shortly.',
+                1000,
+              ),
+            color: body.payload.color || cleanColor(body.color, MELLUNE_DEFAULT_EMBED_COLOR),
+          })
         : null,
     buttonLabel: cleanText(body.buttonLabel, 'Open ticket', 80),
     buttonStyle: ['PRIMARY', 'SECONDARY', 'SUCCESS', 'DANGER'].includes(
