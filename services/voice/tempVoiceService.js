@@ -3,10 +3,14 @@ const { createVoiceRoom } = require('./voiceRoomService');
 const roomCreationLocks = new Set();
 
 function formatName(format, member) {
-  return (format || "{username}'s room")
+  const name = (format || "{username}'s room")
     .replace(/\{username\}/gi, member.user.username)
     .replace(/\{displayname\}/gi, member.displayName)
+    .replace(/\{userid\}/gi, member.user.id)
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
+    .trim()
     .slice(0, 100);
+  return name || `${member.user.username}'s room`.slice(0, 100);
 }
 
 async function handleVoiceStateUpdate(oldState, newState, prisma) {
