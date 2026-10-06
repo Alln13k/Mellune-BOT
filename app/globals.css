@@ -535,18 +535,6 @@ p {
   background: linear-gradient(var(--lavender), var(--pink));
 }
 
-.soon {
-  margin-left: auto;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
 .profile {
   display: flex;
   align-items: center;
@@ -972,6 +960,25 @@ code.chip {
 
 .field textarea {
   resize: vertical;
+}
+
+.divider {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.case {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.case:last-child {
+  border-bottom: 0;
 }
 
 .field input:focus,

@@ -2,6 +2,8 @@ const { NextResponse } = require('next/server');
 const { snowflake } = require('../../../../../lib/validate');
 const { prisma } = require('../../../../../database/client');
 const { guildRoute, badRequest } = require('../../../../../lib/guildRoute');
+const { guildResources } = require('../../../../../lib/discordRest');
+const { queueJob } = require('../../../../../lib/featureApi');
 
 const DEFAULT_CATEGORIES = [
   {
@@ -56,14 +58,21 @@ function cleanCategory(category) {
 }
 
 const GET = guildRoute(async ({ guildId }) => {
-  const [panel, categories] = await Promise.all([
+  const [panel, categories, resources] = await Promise.all([
     prisma.ticketPanel.findUnique({ where: { guildId } }),
     prisma.ticketCategory.findMany({
       where: { guildId },
       orderBy: { createdAt: 'asc' },
     }),
+    guildResources(guildId),
   ]);
-  return NextResponse.json({ panel, categories });
+  return NextResponse.json({
+    panel,
+    categories,
+    channels: resources.channels.filter((channel) =>
+      [0, 5].includes(channel.type),
+    ),
+  });
 });
 
 const POST = guildRoute(async ({ request, guildId }) => {
@@ -84,6 +93,7 @@ const POST = guildRoute(async ({ request, guildId }) => {
     return badRequest('Category names must be unique.');
   }
   const panelData = {
+    channelId: snowflake(body.channelId),
     title: cleanText(body.title, 'Need a hand?', 120),
     description: cleanText(
       body.description,
@@ -136,7 +146,14 @@ const POST = guildRoute(async ({ request, guildId }) => {
       include: { categories: { orderBy: { createdAt: 'asc' } } },
     });
   });
-  return NextResponse.json(result, { status: 200 });
+  let jobId = null;
+  if (body.publish && panelData.channelId) {
+    const job = await queueJob(prisma, guildId, 'PUBLISH_TICKET_PANEL', {
+      channelId: panelData.channelId,
+    });
+    jobId = job.id;
+  }
+  return NextResponse.json({ ...result, jobId }, { status: 200 });
 });
 
 module.exports = { GET, POST };

@@ -3,6 +3,13 @@ const assert = require('node:assert/strict');
 const { bucketize, getRangeStart, parseRange } = require('../lib/analytics');
 const { renderTemplate } = require('../lib/welcomeTemplate');
 const validate = require('../lib/validate');
+const { renderText } = require('../services/embedService');
+const { violated } = require('../services/automod/automodService');
+const { nextRecurrence } = require('../services/scheduler/jobWorker');
+const { pickWinners } = require('../services/giveaways/giveawayService');
+const {
+  formatName: formatVoiceName,
+} = require('../services/voice/tempVoiceService');
 
 const NOW = new Date('2026-10-06T12:30:00.000Z');
 
@@ -59,6 +66,55 @@ test('validators sanitise untrusted input', () => {
   assert.equal(validate.bool('true'), false);
 });
 
+test('server-side embed variables and automod detectors are deterministic', () => {
+  assert.equal(
+    renderText('Hi {user} on {server} {unknown}', {
+      user: '<@1>',
+      server: 'Mellune',
+    }),
+    'Hi <@1> on Mellune {unknown}',
+  );
+  const message = {
+    content: 'BUY NOW DISCORD.GG/example',
+    mentions: { users: { size: 0 }, roles: { size: 0 }, everyone: false },
+  };
+  assert.equal(violated({ type: 'INVITES' }, message, []), true);
+  assert.equal(
+    violated(
+      { type: 'CAPS', threshold: 5 },
+      { ...message, content: 'BUY NOW DISCORD.GG' },
+      [],
+    ),
+    true,
+  );
+  assert.equal(
+    violated({ type: 'WORDS', value: 'buy, scam' }, message, []),
+    true,
+  );
+});
+
+test('persistent scheduler helpers handle recurrence, voice names and unique winners', () => {
+  const start = new Date('2026-10-06T12:00:00Z');
+  assert.equal(
+    nextRecurrence(start, 'daily').toISOString(),
+    '2026-10-07T12:00:00.000Z',
+  );
+  assert.equal(nextRecurrence(start, null), null);
+  assert.equal(
+    formatVoiceName('{displayname} room', {
+      displayName: 'Luna',
+      user: { username: 'luna' },
+    }),
+    'Luna room',
+  );
+  const winners = pickWinners(
+    [{ userId: '1' }, { userId: '2' }, { userId: '3' }],
+    2,
+  );
+  assert.equal(winners.length, 2);
+  assert.equal(new Set(winners).size, 2);
+});
+
 test('welcome service greets members with restricted mentions and assigns the auto-role', async () => {
   const { handleMemberJoin } = require('../services/welcome/welcomeService');
   const sent = [];
@@ -66,6 +122,19 @@ test('welcome service greets members with restricted mentions and assigns the au
   const prisma = {
     guild: { upsert: async () => ({}) },
     user: { upsert: async () => ({}) },
+    greetingConfig: {
+      findUnique: async () => ({
+        enabled: true,
+        channelId: '100000000000000001',
+        title: 'Welcome {server}',
+        description: 'Hi {user} to {server} #{memberCount}',
+        color: '#b9a7ff',
+        useTimestamp: false,
+        mentionMode: 'USER',
+        autoRoleId: '200000000000000002',
+        dmEnabled: false,
+      }),
+    },
     welcomeConfig: {
       findUnique: async () => ({
         enabled: true,
@@ -94,6 +163,10 @@ test('welcome service greets members with restricted mentions and assigns the au
   };
   await handleMemberJoin(prisma, member);
   assert.deepEqual(roles, ['200000000000000002']);
-  assert.equal(sent[0].content, 'Hi <@300000000000000003> to Mellune #42');
+  assert.equal(sent[0].content, '<@300000000000000003>');
+  assert.equal(
+    sent[0].embeds[0].data.description,
+    'Hi <@300000000000000003> to Mellune #42',
+  );
   assert.deepEqual(sent[0].allowedMentions.roles, []);
 });

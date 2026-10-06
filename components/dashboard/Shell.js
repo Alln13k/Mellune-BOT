@@ -89,7 +89,6 @@ function Sidebar({ open, onClose }) {
                   >
                     <Icon size={18} strokeWidth={1.75} aria-hidden="true" />
                     <span>{item.title}</span>
-                    {!item.ready && <span className="soon">Soon</span>}
                   </Link>
                 );
               })}

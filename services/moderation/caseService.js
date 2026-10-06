@@ -1,4 +1,5 @@
 const DEFAULT_REASON = 'No reason provided.';
+const { recordActivity } = require('../activityService');
 
 async function createCase(
   prisma,
@@ -18,7 +19,7 @@ async function createCase(
       username: target.user.username,
     },
   });
-  return prisma.moderationCase.create({
+  const record = await prisma.moderationCase.create({
     data: {
       guildId: guild.id,
       targetId: target.id,
@@ -27,6 +28,13 @@ async function createCase(
       reason: reason || DEFAULT_REASON,
     },
   });
+  await recordActivity(prisma, {
+    guildId: guild.id,
+    kind: 'MODERATION',
+    userId: target.id,
+    metadata: { action, reason: reason || DEFAULT_REASON },
+  }).catch(() => {});
+  return record;
 }
 
 module.exports = { createCase, DEFAULT_REASON };

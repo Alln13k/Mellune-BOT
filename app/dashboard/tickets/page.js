@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Save, Ticket, Trash2 } from 'lucide-react';
+import { Plus, Save, Send, Ticket, Trash2 } from 'lucide-react';
 import {
   guildApi,
   useDashboard,
@@ -17,6 +17,7 @@ import {
 } from '../../../components/dashboard/ui';
 
 const DEFAULT_PANEL = {
+  channelId: '',
   title: 'Need a hand?',
   description: 'Choose a category below and our team will be with you shortly.',
   color: '#b9a7ff',
@@ -69,13 +70,14 @@ export default function TicketBuilderPage() {
     );
   }
 
-  async function save() {
+  async function save(publish = false) {
     setSaving(true);
     try {
       const result = await guildApi(guild.id, 'tickets', {
         method: 'POST',
         body: JSON.stringify({
           ...panel,
+          publish,
           categories: categories.map((category) => ({
             ...category,
             discordCategoryId: category.discordCategoryId || null,
@@ -103,15 +105,25 @@ export default function TicketBuilderPage() {
         title="Tickets"
         description="Design the panel your members use to open a conversation."
         actions={
-          <button
-            type="button"
-            className="button"
-            onClick={save}
-            disabled={!ready || saving}
-          >
-            <Save size={16} aria-hidden="true" />
-            {saving ? 'Saving…' : 'Save changes'}
-          </button>
+          <div className="form-row">
+            <button
+              type="button"
+              className="button"
+              onClick={() => save()}
+              disabled={!ready || saving}
+            >
+              <Save size={16} aria-hidden="true" />
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+            <button
+              type="button"
+              className="button button-ghost"
+              onClick={() => save(true)}
+              disabled={!ready || saving || !panel.channelId}
+            >
+              <Send size={16} aria-hidden="true" /> Publish panel
+            </button>
+          </div>
         }
       />
       {error && <ErrorNotice onRetry={reload}>{error}</ErrorNotice>}
@@ -132,6 +144,24 @@ export default function TicketBuilderPage() {
                   setPanel((current) => ({ ...current, enabled: value }))
                 }
               />
+              <Field label="Panel channel">
+                <select
+                  value={panel.channelId || ''}
+                  onChange={(event) =>
+                    setPanel((current) => ({
+                      ...current,
+                      channelId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Choose a Discord channel…</option>
+                  {(data?.channels || []).map((channel) => (
+                    <option value={channel.id} key={channel.id}>
+                      #{channel.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="Title">
                 <input
                   value={panel.title}
