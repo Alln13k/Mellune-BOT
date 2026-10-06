@@ -1,9 +1,9 @@
 import { defineConfig } from "@neon/config/v1";
 
 export default defineConfig({
-  preview: {
-    buckets: {
-      uploads: { access: "private" },
-    },
+  auth: true,
+  aiGateway: true,
+  buckets: {
+    uploads: { access: "private" },
   },
 });

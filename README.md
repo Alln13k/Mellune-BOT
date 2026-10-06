@@ -30,7 +30,21 @@ DEV_GUILD_ID=your_test_server_id
 
 Use the **pooled** Neon URL for `DATABASE_URL` (hostname contains `-pooler`) and the **direct** URL for `DIRECT_URL` (no `-pooler`). Prisma uses the pooled URL at runtime and the direct URL for migrations.
 
-Never share `DISCORD_TOKEN`, `DATABASE_URL`, `DIRECT_URL`, or `NEON_API_KEY`, and never commit `.env`.
+Never share `DISCORD_TOKEN`, `DATABASE_URL`, `DIRECT_URL`, `NEON_API_KEY`, storage keys, or the AI Gateway token, and never commit `.env`.
+
+Optional Neon services (Auth, Object Storage, AI Gateway) use these extra variables. Leave them empty until you copy them from the Neon Console:
+
+```env
+NEON_AUTH_APPLICATION_NAME=
+NEON_AUTH_BASE_URL=
+NEON_AUTH_JWKS_URL=
+AWS_ENDPOINT_URL_S3=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_REGION=eu-central-1
+NEON_AI_GATEWAY_TOKEN=
+NEON_AI_GATEWAY_BASE_URL=
+```
 
 ## 3. Create the Discord bot
 
