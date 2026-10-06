@@ -3,7 +3,7 @@ const js = require('@eslint/js');
 module.exports = [
   js.configs.recommended,
   {
-    ignores: ['node_modules/**', 'prisma/**'],
+    ignores: ['node_modules/**', 'prisma/**', '.agents/**', 'neon.ts'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'commonjs',

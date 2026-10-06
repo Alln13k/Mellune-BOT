@@ -1,4 +1,9 @@
-const required = ['DISCORD_TOKEN', 'DISCORD_CLIENT_ID', 'DATABASE_URL'];
+const required = [
+  'DISCORD_TOKEN',
+  'DISCORD_CLIENT_ID',
+  'DATABASE_URL',
+  'DIRECT_URL',
+];
 
 function validateEnvironment() {
   const missing = required.filter((key) => !process.env[key]);
