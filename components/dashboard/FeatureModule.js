@@ -20,6 +20,10 @@ import {
   Tags,
   Trash2,
   UserCheck,
+  UserPlus,
+  Users,
+  HeartPulse,
+  Database,
 } from 'lucide-react';
 import ActivityChart from './ActivityChart';
 import { guildApi, useDashboard, useGuildData } from './DashboardContext';
@@ -50,6 +54,11 @@ const CONFIG_ICONS = {
   interactions: MousePointerClick,
   analytics: ChartColumn,
   suggestions: Lightbulb,
+  'auto-roles': UserPlus,
+  'member-counter': Users,
+  profiles: Users,
+  'server-health': HeartPulse,
+  backups: Database,
 };
 
 const CONFIG_TITLES = {
@@ -100,6 +109,20 @@ const CONFIG_TITLES = {
     'Suggestions',
     'Turn a channel into a reviewable, persistent suggestion inbox.',
   ],
+  'auto-roles': [
+    'Auto roles',
+    'Assign valid Discord roles automatically when members join.',
+  ],
+  'member-counter': [
+    'Live member counter',
+    'Display the real Discord member count in a locked voice channel.',
+  ],
+  profiles: ['Profiles', 'Real member data, leveling and community activity.'],
+  'server-health': [
+    'Server health',
+    'Real diagnostics for Discord, Mellune configuration and persistence.',
+  ],
+  backups: ['Backups', 'Persist and safely restore supported server configuration.'],
 };
 
 const endpointFor = (section) =>
@@ -1115,6 +1138,255 @@ function GiveawaysPage() {
 }
 
 void GiveawaysPage;
+
+function AutoRolesPage() {
+  const feature = useFeature('auto-roles');
+  const [roleIds, setRoleIds] = useState([]);
+  useEffect(() => {
+    if (feature.data) setRoleIds(feature.data.config.roleIds || []);
+  }, [feature.data]);
+  const toggle = (roleId) =>
+    setRoleIds((current) =>
+      current.includes(roleId)
+        ? current.filter((id) => id !== roleId)
+        : [...current, roleId],
+    );
+  return (
+    <FeatureFrame
+      icon={UserPlus}
+      title={CONFIG_TITLES['auto-roles'][0]}
+      description={CONFIG_TITLES['auto-roles'][1]}
+      error={feature.error}
+      reload={feature.reload}
+    >
+      <Card title="Auto roles" description="Role hierarchy is checked by the server before saving.">
+        {!feature.data ? <Skeleton height={240} /> : (
+          <>
+            <Toggle
+              label="Enable auto roles"
+              checked={feature.data.config.enabled}
+              onChange={(enabled) =>
+                feature.save({ enabled, roleIds, ignoreBots: feature.data.config.ignoreBots })
+              }
+            />
+            <Toggle
+              label="Ignore bot accounts"
+              checked={feature.data.config.ignoreBots !== false}
+              onChange={(ignoreBots) =>
+                feature.save({ enabled: feature.data.config.enabled, roleIds, ignoreBots })
+              }
+            />
+            <div className="category-grid">
+              {feature.data.roles.map((role) => (
+                <label className="category-card" key={role.id}>
+                  <input
+                    type="checkbox"
+                    checked={roleIds.includes(role.id)}
+                    disabled={!role.assignable}
+                    onChange={() => toggle(role.id)}
+                  />
+                  <strong style={{ color: role.color ? `#${String(role.color).padStart(6, '0')}` : undefined }}>
+                    {role.name}
+                  </strong>
+                  <span className="subtle mono">{role.id}</span>
+                  <span className="subtle">
+                    {role.assignable ? '✅ Assignable' : `⚠️ ${role.reason}`}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="button"
+              disabled={feature.saving}
+              onClick={() =>
+                feature.save({
+                  enabled: feature.data.config.enabled,
+                  roleIds,
+                  ignoreBots: feature.data.config.ignoreBots !== false,
+                })
+              }
+            >
+              <Save size={16} /> Save auto roles
+            </button>
+          </>
+        )}
+      </Card>
+    </FeatureFrame>
+  );
+}
+
+function MemberCounterPage() {
+  const feature = useFeature('member-counter');
+  const [form, setForm] = useState({
+    enabled: false,
+    categoryId: '',
+    format: '👥 Members: {membercount}',
+  });
+  useEffect(() => {
+    if (feature.data?.config) {
+      setForm({
+        enabled: feature.data.config.enabled,
+        categoryId: feature.data.config.categoryId || '',
+        format: feature.data.config.format || '👥 Members: {membercount}',
+      });
+    }
+  }, [feature.data]);
+  const count = feature.data?.count ?? feature.data?.config?.lastCount ?? 0;
+  const preview = form.format.replaceAll('{membercount}', Number(count).toLocaleString('en-US'));
+  return (
+    <FeatureFrame
+      icon={Users}
+      title={CONFIG_TITLES['member-counter'][0]}
+      description={CONFIG_TITLES['member-counter'][1]}
+      error={feature.error}
+      reload={feature.reload}
+    >
+      <div className="grid-2">
+        <Card title="Counter configuration" description="Only {membercount} is substituted.">
+          <Toggle
+            label="Enable live member counter"
+            checked={form.enabled}
+            onChange={(enabled) => setForm({ ...form, enabled })}
+          />
+          <Field label="Channel category">
+            <select
+              value={form.categoryId}
+              onChange={(event) => setForm({ ...form, categoryId: event.target.value })}
+            >
+              <option value="">Guild root</option>
+              {(feature.data?.categories || []).map((category) => (
+                <option value={category.id} key={category.id}>▣ {category.name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Channel name format" hint="Must contain {membercount}; Discord limits the final name to 100 characters.">
+            <input
+              value={form.format}
+              onChange={(event) => setForm({ ...form, format: event.target.value })}
+            />
+          </Field>
+          <div className="form-row">
+            <button type="button" className="button" onClick={() => feature.save(form)} disabled={feature.saving}>
+              <Save size={16} /> {feature.saving ? 'Saving…' : 'Save counter'}
+            </button>
+            <button type="button" className="button button-ghost" onClick={() => feature.save({ action: 'sync' })}>
+              Sync now
+            </button>
+          </div>
+        </Card>
+        <Card title="Live preview" description="Uses the current Discord member count.">
+          <div className="discord-message">
+            <div className="discord-author"><strong>Voice channel</strong></div>
+            <h3>{preview}</h3>
+            <p className="subtle">Current count: {Number(count).toLocaleString('en-US')}</p>
+            {feature.data?.config?.lastSyncedAt && (
+              <p className="subtle">Last synchronized: {formatDate(feature.data.config.lastSyncedAt)}</p>
+            )}
+          </div>
+        </Card>
+      </div>
+    </FeatureFrame>
+  );
+}
+
+function ProfilesPage() {
+  const feature = useFeature('profiles');
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState(null);
+  async function inspect(userId) {
+    try {
+      const result = await guildApi(feature.guild.id, `profiles/${userId}`);
+      setSelected(result.profile);
+    } catch (error) {
+      feature.notify(error.message, 'error');
+    }
+  }
+  return (
+    <FeatureFrame icon={Users} title={CONFIG_TITLES.profiles[0]} description={CONFIG_TITLES.profiles[1]} error={feature.error} reload={feature.reload}>
+      <Card title="Member profiles" description="Persisted guild-scoped data only.">
+        <div className="form-row">
+          <input placeholder="Search username or Discord ID" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <button type="button" className="button button-ghost" onClick={() => feature.reload()}>Search</button>
+        </div>
+        {!feature.data ? <Skeleton height={240} /> : feature.data.profiles.length ? (
+          <ul className="list">
+            {feature.data.profiles.filter((profile) => !search || profile.username.toLowerCase().includes(search.toLowerCase()) || profile.userId.includes(search)).map((profile) => (
+              <li key={profile.userId}>
+                <div className="list-main">
+                  <strong>{profile.displayName || profile.username}</strong>
+                  <span className="subtle">{profile.username} · {profile.userId}</span>
+                </div>
+                <span className="subtle">Lv. {profile.level} · {profile.xp.toLocaleString()} XP</span>
+                <button type="button" className="button button-small" onClick={() => inspect(profile.userId)}>View</button>
+              </li>
+            ))}
+          </ul>
+        ) : <EmptyState icon={Users} title="No profiles yet" />}
+      </Card>
+      {selected && (
+        <Card title={selected.user.displayName || selected.user.username} description={`@${selected.user.username} · ${selected.user.userId}`}>
+          <div className="stats">
+            <div className="card stat"><span className="stat-label">Level</span><span className="stat-value">{selected.level}</span></div>
+            <div className="card stat"><span className="stat-label">XP</span><span className="stat-value">{selected.xp.toLocaleString()}</span></div>
+            <div className="card stat"><span className="stat-label">Rank</span><span className="stat-value">{selected.rank ? `#${selected.rank}` : '—'}</span></div>
+            <div className="card stat"><span className="stat-label">Messages</span><span className="stat-value">{selected.messages.toLocaleString()}</span></div>
+          </div>
+        </Card>
+      )}
+    </FeatureFrame>
+  );
+}
+
+function ServerHealthPage() {
+  const feature = useFeature('server-health');
+  return (
+    <FeatureFrame icon={HeartPulse} title={CONFIG_TITLES['server-health'][0]} description={CONFIG_TITLES['server-health'][1]} error={feature.error} reload={feature.reload}>
+      {!feature.data ? <Skeleton height={300} /> : (
+        <>
+          <section className="stats">
+            <div className="card stat"><span className="stat-label">Server health</span><span className="stat-value">{feature.data.score}/100</span></div>
+            <div className="card stat"><span className="stat-label">Checks</span><span className="stat-value">{feature.data.checks.length}</span></div>
+          </section>
+          <Card title="Diagnostics" description="Calculated from live Discord, database and persisted Mellune state.">
+            <ul className="list">
+              {feature.data.checks.map((check) => (
+                <li key={check.key}><div className="list-main"><strong>{check.status === 'HEALTHY' ? '✅' : check.status === 'CRITICAL' ? '🔴' : '⚠️'} {check.label}</strong><span className="subtle">{check.message}</span></div></li>
+              ))}
+            </ul>
+          </Card>
+        </>
+      )}
+    </FeatureFrame>
+  );
+}
+
+function BackupsPage() {
+  const feature = useFeature('backups');
+  const [name, setName] = useState('Mellune server backup');
+  async function create() {
+    await feature.save({ name });
+  }
+  async function restore(id) {
+    if (!window.confirm('Restore this snapshot safely? Existing objects not in the snapshot will not be deleted.')) return;
+    await feature.save({ action: 'restore', id });
+  }
+  async function remove(id) {
+    if (!window.confirm('Delete this stored backup? The Discord server will not be changed.')) return;
+    await guildApi(feature.guild.id, `backups/${id}`, { method: 'DELETE' });
+    await feature.reload();
+  }
+  return (
+    <FeatureFrame icon={Database} title={CONFIG_TITLES.backups[0]} description={CONFIG_TITLES.backups[1]} error={feature.error} reload={feature.reload}>
+      <Card title="Create snapshot" description="Stores supported roles, channels and Mellune configuration in PostgreSQL.">
+        <div className="form-row"><input value={name} onChange={(event) => setName(event.target.value)} /><button type="button" className="button" onClick={create}>Create backup</button></div>
+      </Card>
+      <Card title="Snapshots" description="Safe restore never deletes unrelated Discord objects.">
+        {!feature.data ? <Skeleton height={220} /> : feature.data.backups.length ? <ul className="list">{feature.data.backups.map((backup) => <li key={backup.id}><div className="list-main"><strong>{backup.name}</strong><span className="subtle">{formatDate(backup.createdAt)} · {backup.summary?.roles || 0} roles · {backup.summary?.channels || 0} channels</span></div><button type="button" className="button button-small" onClick={() => restore(backup.id)}>Restore</button><button type="button" className="button button-small button-ghost" onClick={() => remove(backup.id)}>Delete</button></li>)}</ul> : <EmptyState icon={Database} title="No backups yet" />}
+      </Card>
+    </FeatureFrame>
+  );
+}
 
 function CompleteGiveawaysPage() {
   const feature = useFeature('giveaways');
@@ -2343,33 +2615,78 @@ function SuggestionsPage() {
 
 function AnalyticsPage() {
   const feature = useFeature('analytics');
+  const [range, setRange] = useState('7d');
+  const [rangeLoading, setRangeLoading] = useState(false);
+  async function changeRange(value) {
+    setRange(value);
+    if (!feature.guild?.id) return;
+    setRangeLoading(true);
+    try {
+      const data = await guildApi(
+        feature.guild.id,
+        `analytics?range=${encodeURIComponent(value)}`,
+      );
+      feature.setData(data);
+    } catch (error) {
+      feature.notify(error.message, 'error');
+    } finally {
+      setRangeLoading(false);
+    }
+  }
+  const metrics = [
+    ['members', 'Current members'],
+    ['activeMembers', 'Active members'],
+    ['messages', 'Messages'],
+    ['joins', 'Joins'],
+    ['tickets', 'Tickets'],
+    ['moderation', 'Moderation actions'],
+  ];
   return (
     <FeatureFrame
       icon={ChartColumn}
       title="Analytics"
       description={CONFIG_TITLES.analytics[1]}
       error={feature.error}
-      reload={feature.reload}
+      reload={() => changeRange(range)}
+      actions={
+        <div className="segmented" role="group" aria-label="Analytics time range">
+          {['24h', '7d', '30d'].map((value) => (
+            <button
+              type="button"
+              key={value}
+              className={range === value ? 'is-active' : ''}
+              aria-pressed={range === value}
+              disabled={rangeLoading}
+              onClick={() => changeRange(value)}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+      }
     >
       {!feature.data ? (
         <Skeleton height={360} />
       ) : (
         <>
           <section className="stats">
-            {Object.entries(feature.data.totals)
-              .slice(0, 4)
-              .map(([label, value]) => (
-                <article className="card stat" key={label}>
+            {metrics.map(([key, label]) => {
+              const value = feature.data.totals[key];
+              return (
+                <article className="card stat" key={key}>
                   <div>
                     <div className="stat-label">{label}</div>
-                    <div className="stat-value">{value.toLocaleString()}</div>
+                    <div className="stat-value">
+                      {value == null ? 'Unavailable' : value.toLocaleString()}
+                    </div>
                   </div>
                 </article>
-              ))}
+              );
+            })}
           </section>
           <Card
-            title="Measured activity"
-            description="Only activity events stored by Mellune are included."
+            title={`Measured activity · ${feature.data.range}`}
+            description="Charts use events Mellune has actually recorded; current members come from Discord."
           >
             <ActivityChart
               series={feature.data.series}
@@ -2398,6 +2715,11 @@ export default function FeatureModule({ section }) {
     interactions: InteractionsPage,
     analytics: AnalyticsPage,
     suggestions: SuggestionsPage,
+    'auto-roles': AutoRolesPage,
+    'member-counter': MemberCounterPage,
+    profiles: ProfilesPage,
+    'server-health': ServerHealthPage,
+    backups: BackupsPage,
   }[section];
   return Component ? <Component /> : <GenericConfig section={section} />;
 }

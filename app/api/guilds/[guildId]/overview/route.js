@@ -6,6 +6,7 @@ const {
   getRangeStart,
   parseRange,
 } = require('../../../../../lib/analytics');
+const { botFetch } = require('../../../../../lib/discordRest');
 
 const GET = guildRoute(async ({ request, guildId }) => {
   const range = parseRange(new URL(request.url).searchParams.get('range'));
@@ -14,7 +15,7 @@ const GET = guildRoute(async ({ request, guildId }) => {
 
   const [
     guild,
-    members,
+    discordGuild,
     warnings,
     cases,
     openTickets,
@@ -25,7 +26,7 @@ const GET = guildRoute(async ({ request, guildId }) => {
     memberDates,
   ] = await Promise.all([
     prisma.guild.findUnique({ where: { id: guildId } }),
-    prisma.user.count({ where: { guildId } }),
+    botFetch(`/guilds/${guildId}?with_counts=true`).catch(() => null),
     prisma.warning.count({ where: { guildId } }),
     prisma.moderationCase.count({ where: { guildId } }),
     prisma.ticket.count({ where: { guildId, status: 'OPEN' } }),
@@ -52,7 +53,10 @@ const GET = guildRoute(async ({ request, guildId }) => {
     guild,
     range,
     stats: {
-      members,
+      members:
+        discordGuild?.member_count ??
+        discordGuild?.approximate_member_count ??
+        'Unavailable',
       warnings,
       cases,
       openTickets,

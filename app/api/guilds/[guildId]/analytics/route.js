@@ -1,4 +1,5 @@
 const { prisma } = require('../../../../../database/client');
+const { botFetch } = require('../../../../../lib/discordRest');
 const { guildRoute } = require('../../../../../lib/guildRoute');
 const {
   bucketize,
@@ -10,10 +11,13 @@ const { response } = require('../../../../../lib/featureApi');
 const GET = guildRoute(async ({ request, guildId }) => {
   const range = parseRange(new URL(request.url).searchParams.get('range'));
   const since = getRangeStart(range);
-  const activity = await prisma.activityEvent.findMany({
-    where: { guildId, createdAt: { gte: since } },
-    select: { kind: true, createdAt: true },
-  });
+  const [activity, discordGuild] = await Promise.all([
+    prisma.activityEvent.findMany({
+      where: { guildId, createdAt: { gte: since } },
+      select: { kind: true, userId: true, createdAt: true },
+    }),
+    botFetch(`/guilds/${guildId}?with_counts=true`).catch(() => null),
+  ]);
   const count = (kind) =>
     activity.filter((event) => event.kind === kind).length;
   const metric = (kind) =>
@@ -23,6 +27,13 @@ const GET = guildRoute(async ({ request, guildId }) => {
         .map((event) => event.createdAt),
       range,
     );
+  const currentMembers =
+    discordGuild?.member_count ?? discordGuild?.approximate_member_count ?? null;
+  const activeMembers = new Set(
+    activity
+      .filter((event) => event.kind === 'MESSAGE' && event.userId)
+      .map((event) => event.userId),
+  ).size;
   const [members, tickets, moderation, giveaways, verifications] =
     await Promise.all([
       prisma.user.count({ where: { guildId } }),
@@ -36,11 +47,14 @@ const GET = guildRoute(async ({ request, guildId }) => {
   return response({
     range,
     totals: {
-      members,
+      members: currentMembers,
+      trackedMembers: members,
+      activeMembers,
       joins: count('JOIN'),
       leaves: count('LEAVE'),
       netGrowth: count('JOIN') - count('LEAVE'),
       messages: count('MESSAGE'),
+      levelUps: count('LEVEL_UP'),
       tickets,
       moderation,
       giveaways,
@@ -51,6 +65,7 @@ const GET = guildRoute(async ({ request, guildId }) => {
       { key: 'leaves', label: 'Leaves', points: metric('LEAVE') },
       { key: 'messages', label: 'Messages', points: metric('MESSAGE') },
       { key: 'moderation', label: 'Moderation', points: metric('MODERATION') },
+      { key: 'levelUps', label: 'Level ups', points: metric('LEVEL_UP') },
     ],
   });
 });

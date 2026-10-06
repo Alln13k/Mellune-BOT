@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Gavel,
   LayoutDashboard,
@@ -46,6 +46,11 @@ export default function OverviewPage() {
   );
   const name = user?.global_name || user?.username;
 
+  useEffect(() => {
+    const timer = setInterval(() => reload(), 30_000);
+    return () => clearInterval(timer);
+  }, [range]);
+
   return (
     <>
       <PageHeader
@@ -60,7 +65,7 @@ export default function OverviewPage() {
           <>
             <StatCard
               icon={Users}
-              label="Tracked members"
+              label="Server members"
               value={data.stats.members}
             />
             <StatCard

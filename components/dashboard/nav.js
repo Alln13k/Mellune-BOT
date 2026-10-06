@@ -19,6 +19,10 @@ import {
   Ticket,
   TrendingUp,
   UserCheck,
+  UserPlus,
+  Users,
+  HeartPulse,
+  Database,
 } from 'lucide-react';
 
 /** Shared navigation metadata; each page is backed by a guild-scoped API. */
@@ -102,6 +106,18 @@ export const NAV_GROUPS = [
         blurb: 'Reward activity and celebrate your most active members.',
       },
       {
+        slug: 'auto-roles',
+        title: 'Auto roles',
+        icon: UserPlus,
+        blurb: 'Assign safe, persistent roles when members join.',
+      },
+      {
+        slug: 'member-counter',
+        title: 'Live member counter',
+        icon: Users,
+        blurb: 'Display the real server member count in a locked voice channel.',
+      },
+      {
         slug: 'giveaways',
         title: 'Giveaways',
         icon: Gift,
@@ -130,6 +146,12 @@ export const NAV_GROUPS = [
         title: 'Reminders',
         icon: BellRing,
         blurb: 'Scheduled messages and personal reminders.',
+      },
+      {
+        slug: 'profiles',
+        title: 'Profiles',
+        icon: Users,
+        blurb: 'Inspect real member activity and leveling profiles.',
       },
     ],
   },
@@ -164,6 +186,18 @@ export const NAV_GROUPS = [
         title: 'Analytics',
         icon: ChartColumn,
         blurb: 'Growth and engagement over time.',
+      },
+      {
+        slug: 'server-health',
+        title: 'Server health',
+        icon: HeartPulse,
+        blurb: 'Diagnose real Discord, database and configuration health.',
+      },
+      {
+        slug: 'backups',
+        title: 'Backups',
+        icon: Database,
+        blurb: 'Create and safely restore server configuration snapshots.',
       },
     ],
   },

@@ -6,6 +6,11 @@ const COLORS = {
   members: 'var(--lavender)',
   cases: 'var(--pink)',
   tickets: 'var(--green)',
+  joins: 'var(--green)',
+  leaves: 'var(--pink)',
+  messages: 'var(--lavender)',
+  moderation: 'var(--pink)',
+  levelUps: 'var(--green)',
 };
 
 function labelFor(start, range) {

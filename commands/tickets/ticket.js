@@ -45,19 +45,24 @@ module.exports = {
         });
       await prisma.ticket.update({
         where: { id: ticket.id },
-        data: { status: 'CLOSED', closedAt: new Date() },
+        data: {
+          status: 'CLOSED',
+          closedAt: new Date(),
+          closedBy: interaction.user.id,
+        },
       });
       await interaction.reply({
         embeds: [
           successEmbed(
             'Ticket closed',
-            'This channel will be archived shortly.',
+            'This channel will now be deleted.',
           ),
         ],
       });
-      return interaction.channel.permissionOverwrites
-        .edit(ticket.creatorId, { ViewChannel: false })
-        .catch(() => {});
+      await interaction.channel.delete('Mellune ticket closed').catch((error) =>
+        console.error(`Failed to delete closed ticket channel: ${error.message}`),
+      );
+      return;
     }
     const existing = await prisma.ticket.findFirst({
       where: {

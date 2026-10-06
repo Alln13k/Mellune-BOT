@@ -8,10 +8,10 @@ async function addMessageXp(prisma, guildId, userId) {
     current?.lastMessageAt &&
     Date.now() - current.lastMessageAt.getTime() < XP_COOLDOWN_MS
   )
-    return current;
+    return { entry: current, previousLevel: current.level, leveledUp: false };
   const xp = (current?.xp || 0) + Math.floor(Math.random() * 11) + 10;
   const level = Math.floor(Math.sqrt(xp / 100));
-  return prisma.levelUser.upsert({
+  const entry = await prisma.levelUser.upsert({
     where: { guildId_userId: { guildId, userId } },
     update: {
       xp,
@@ -28,6 +28,11 @@ async function addMessageXp(prisma, guildId, userId) {
       lastMessageAt: new Date(),
     },
   });
+  return {
+    entry,
+    previousLevel: current?.level || 0,
+    leveledUp: entry.level > (current?.level || 0),
+  };
 }
 
 module.exports = { addMessageXp };

@@ -54,6 +54,7 @@ async function start() {
   );
   process.once('SIGINT', async () => {
     client.stopJobWorker?.();
+    client.stopMemberCounterSync?.();
     await client.destroy();
     await disconnectDatabase();
     process.exit(0);
