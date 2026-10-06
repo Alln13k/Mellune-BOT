@@ -2,6 +2,7 @@ const PLACEHOLDER = '{membercount}';
 const MAX_CHANNEL_NAME = 100;
 const GUILD_CATEGORY = 4;
 const GUILD_VOICE = 2;
+const RECONCILIATION_INTERVAL_MS = 60_000;
 const MANAGE_CHANNELS = 1n << 4n;
 const DENY_CONNECT_SPEAK_STREAM_VAD =
   (1n << 20n) | (1n << 21n) | (1n << 8n) | (1n << 24n);
@@ -96,10 +97,12 @@ async function syncAllMemberCounters(client) {
 function startMemberCounterSync(client) {
   const timer = setInterval(
     () => syncAllMemberCounters(client),
-    5 * 60_000,
+    RECONCILIATION_INTERVAL_MS,
   );
   timer.unref?.();
-  syncAllMemberCounters(client);
+  syncAllMemberCounters(client).catch((error) =>
+    console.error('Initial member counter sync failed:', error.message),
+  );
   return () => clearInterval(timer);
 }
 

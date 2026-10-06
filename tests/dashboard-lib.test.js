@@ -14,6 +14,7 @@ const {
 const {
   formatChannelName,
   validateFormat,
+  syncMemberCounter,
 } = require('../services/memberCounter/memberCounterService');
 const { getProfile } = require('../services/profile/profileService');
 const { addMessageXp } = require('../services/leveling/xpService');
@@ -146,6 +147,55 @@ test('member counter formats real counts and rejects unsafe templates', () => {
     () => formatChannelName(`${'x'.repeat(100)}{membercount}`, 1),
     /100 characters/,
   );
+});
+
+test('member counter sync updates the Discord channel and persisted count automatically', async () => {
+  let update;
+  let edit;
+  const channel = {
+    id: 'counter-channel',
+    type: 2,
+    name: 'Members: 0',
+    parentId: null,
+    edit: async (payload) => {
+      edit = payload;
+      return { ...channel, ...payload };
+    },
+  };
+  const client = {
+    prisma: {
+      memberCounterConfig: {
+        findUnique: async () => ({
+          guildId: 'guild',
+          enabled: true,
+          channelId: channel.id,
+          categoryId: null,
+          format: 'Members: {membercount}',
+        }),
+        update: async ({ data }) => {
+          update = data;
+          return data;
+        },
+      },
+    },
+    guilds: {
+      fetch: async () => ({
+        memberCount: 42,
+        roles: { everyone: { id: 'guild' } },
+        members: {
+          me: { permissions: { has: () => true } },
+        },
+        channels: {
+          fetch: async () => channel,
+        },
+      }),
+    },
+  };
+  const result = await syncMemberCounter(client, 'guild');
+  assert.equal(result.count, 42);
+  assert.equal(edit.name, 'Members: 42');
+  assert.equal(update.lastCount, 42);
+  assert.ok(update.lastSyncedAt instanceof Date);
 });
 
 test('profile service calculates XP progress and guild rank from persisted data', async () => {

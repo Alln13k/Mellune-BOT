@@ -139,7 +139,8 @@ export function useGuildData(path) {
     return () => controller.abort();
   }, [load]);
 
-  return { data, setData, error, loading, reload: () => load() };
+  const reload = useCallback(() => load(), [load]);
+  return { data, setData, error, loading, reload };
 }
 
 export function guildApi(guildId, path, options) {

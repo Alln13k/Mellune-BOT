@@ -22,9 +22,11 @@ module.exports = {
       await handleJoin(member, client.prisma);
       await handleMemberJoin(client.prisma, member);
       await applyAutoRoles(member, client.prisma);
-      await syncMemberCounter(client, member.guild.id);
     } catch (error) {
       console.error('guildMemberAdd failed:', error.message);
     }
+    await syncMemberCounter(client, member.guild.id).catch((error) =>
+      console.error('Member counter join sync failed:', error.message),
+    );
   },
 };

@@ -1232,7 +1232,16 @@ function MemberCounterPage() {
         format: feature.data.config.format || '👥 Members: {membercount}',
       });
     }
-  }, [feature.data]);
+  }, [
+    feature.data?.config?.enabled,
+    feature.data?.config?.categoryId,
+    feature.data?.config?.format,
+  ]);
+  useEffect(() => {
+    if (!feature.data?.config?.enabled) return undefined;
+    const timer = setInterval(() => feature.reload(), 15_000);
+    return () => clearInterval(timer);
+  }, [feature.data?.config?.enabled, feature.reload]);
   const count = feature.data?.count ?? feature.data?.config?.lastCount ?? 0;
   const preview = form.format.replaceAll('{membercount}', Number(count).toLocaleString('en-US'));
   return (
@@ -1271,12 +1280,9 @@ function MemberCounterPage() {
             <button type="button" className="button" onClick={() => feature.save(form)} disabled={feature.saving}>
               <Save size={16} /> {feature.saving ? 'Saving…' : 'Save counter'}
             </button>
-            <button type="button" className="button button-ghost" onClick={() => feature.save({ action: 'sync' })}>
-              Sync now
-            </button>
           </div>
         </Card>
-        <Card title="Live preview" description="Uses the current Discord member count.">
+        <Card title="Live preview" description="Updates automatically every 15 seconds from Discord.">
           <div className="discord-message">
             <div className="discord-author"><strong>Voice channel</strong></div>
             <h3>{preview}</h3>
