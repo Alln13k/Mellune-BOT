@@ -29,6 +29,7 @@ async function start() {
   client.prisma = prisma;
 
   const commands = loadCommands(path.join(__dirname, 'commands'));
+  client.commands = commands;
   loadEvents(client, path.join(__dirname, 'events'));
   attachInteractionHandler(client, commands, prisma);
 
