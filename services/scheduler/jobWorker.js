@@ -134,6 +134,38 @@ async function executeJob(client, job) {
     });
     return message;
   }
+  if (job.type === 'SEND_APPLICATION_PANEL') {
+    const {
+      ActionRowBuilder,
+      ButtonBuilder,
+      ButtonStyle,
+      EmbedBuilder,
+    } = require('discord.js');
+    const form = await client.prisma.applicationForm.findFirst({
+      where: { id: payload.formId, guildId: job.guildId, enabled: true },
+      include: { questions: { orderBy: { position: 'asc' }, take: 5 } },
+    });
+    if (!form || !form.destinationChannelId) {
+      throw new Error('Application form is no longer publishable.');
+    }
+    const message = await sendToChannel(client, form.destinationChannelId, {
+      embeds: [
+        new EmbedBuilder()
+          .setColor('#b9a7ff')
+          .setTitle(form.title)
+          .setDescription(form.description),
+      ],
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`application-open:${form.id}`)
+            .setLabel('Apply')
+            .setStyle(ButtonStyle.Primary),
+        ),
+      ],
+    });
+    return message;
+  }
   if (job.type === 'SEND_INTERACTION_PANEL') {
     const {
       ActionRowBuilder,
@@ -237,24 +269,38 @@ async function processDueReminders(client) {
     take: 25,
   });
   for (const reminder of reminders) {
-    const next = nextRecurrence(reminder.dueAt, reminder.recurrence);
-    await client.prisma.reminder.update({
-      where: { id: reminder.id },
-      data: next
-        ? { dueAt: next, lastDeliveredAt: new Date() }
-        : { status: 'SENT', lastDeliveredAt: new Date() },
+    const claimed = await client.prisma.reminder.updateMany({
+      where: { id: reminder.id, status: 'PENDING' },
+      data: { status: 'DELIVERING' },
     });
-    await executeJob(client, {
-      guildId: reminder.guildId,
-      type: 'SEND_REMINDER',
-      payload: {
-        channelId: reminder.channelId,
-        userId: reminder.userId,
-        message: reminder.message,
-      },
-    }).catch((error) =>
-      console.error('Reminder delivery failed:', error.message),
-    );
+    if (!claimed.count) continue;
+    try {
+      await executeJob(client, {
+        guildId: reminder.guildId,
+        type: 'SEND_REMINDER',
+        payload: {
+          channelId: reminder.channelId,
+          userId: reminder.userId,
+          message: reminder.message,
+        },
+      });
+      const next = nextRecurrence(reminder.dueAt, reminder.recurrence);
+      await client.prisma.reminder.update({
+        where: { id: reminder.id },
+        data: next
+          ? { status: 'PENDING', dueAt: next, lastDeliveredAt: new Date() }
+          : { status: 'SENT', lastDeliveredAt: new Date() },
+      });
+    } catch (error) {
+      await client.prisma.reminder.update({
+        where: { id: reminder.id },
+        data: {
+          status: 'PENDING',
+          dueAt: new Date(Date.now() + 10_000),
+        },
+      });
+      console.error('Reminder delivery failed:', error.message);
+    }
   }
 }
 
@@ -267,31 +313,45 @@ async function processScheduledAnnouncements(client) {
     take: 25,
   });
   for (const announcement of announcements) {
-    await client.prisma.announcement.update({
-      where: { id: announcement.id },
-      data: { status: 'QUEUED' },
-    });
-    await client.prisma.botJob.create({
-      data: {
-        guildId: announcement.guildId,
-        type: 'SEND_ANNOUNCEMENT',
-        payload: {
-          announcementId: announcement.id,
-          channelId: announcement.channelId,
-          content: announcement.content,
-          embed: announcement.payload,
-          allowedMentions: {
-            parse: [...(announcement.allowEveryone ? ['everyone'] : [])],
-            roles: announcement.roleId ? [announcement.roleId] : [],
-            users: [],
+    await client.prisma.$transaction(async (tx) => {
+      const claimed = await tx.announcement.updateMany({
+        where: { id: announcement.id, status: 'SCHEDULED' },
+        data: { status: 'QUEUED' },
+      });
+      if (!claimed.count) return;
+      await tx.botJob.create({
+        data: {
+          guildId: announcement.guildId,
+          type: 'SEND_ANNOUNCEMENT',
+          payload: {
+            announcementId: announcement.id,
+            channelId: announcement.channelId,
+            content: announcement.content,
+            embed: announcement.payload,
+            allowedMentions: {
+              parse: [
+                ...(announcement.allowEveryone || announcement.allowHere
+                  ? ['everyone']
+                  : []),
+              ],
+              roles: announcement.roleId ? [announcement.roleId] : [],
+              users: [],
+            },
           },
         },
-      },
+      });
     });
   }
 }
 
 async function processPendingJobs(client) {
+  await client.prisma.botJob.updateMany({
+    where: {
+      status: 'RUNNING',
+      claimedAt: { lt: new Date(Date.now() - 5 * 60_000) },
+    },
+    data: { status: 'PENDING', claimedAt: null },
+  });
   const jobs = await client.prisma.botJob.findMany({
     where: {
       status: 'PENDING',

@@ -2,6 +2,7 @@ const { prisma } = require('../../../../../database/client');
 const {
   featureRoute,
   getResources,
+  queueJob,
   readBody,
   response,
   snowflake,
@@ -87,7 +88,23 @@ const POST = featureRoute(async ({ request, guildId, session }) => {
         },
         include: { questions: { orderBy: { position: 'asc' } } },
       });
-  return response({ form });
+  let jobId = null;
+  if (body.publish) {
+    if (!form.enabled) {
+      throw new Error('Enable the application form before publishing it.');
+    }
+    if (!form.destinationChannelId) {
+      throw new Error('Choose a destination channel before publishing it.');
+    }
+    const job = await queueJob(prisma, guildId, 'SEND_APPLICATION_PANEL', {
+      formId: form.id,
+      channelId: form.destinationChannelId,
+      title: form.title,
+      description: form.description,
+    });
+    jobId = job.id;
+  }
+  return response({ form, jobId });
 });
 
 module.exports = { GET, POST };

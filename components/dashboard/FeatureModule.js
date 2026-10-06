@@ -951,6 +951,26 @@ function ApplicationsPage() {
       { label: 'About you', prompt: 'Tell us about yourself.', required: true },
     ],
   });
+  useEffect(() => {
+    const saved = feature.data?.forms?.[0];
+    if (saved) {
+      setForm({
+        id: saved.id,
+        title: saved.title,
+        description: saved.description,
+        destinationChannelId: saved.destinationChannelId || '',
+        reviewRoleId: saved.reviewRoleId || '',
+        enabled: saved.enabled,
+        questions: saved.questions?.length
+          ? saved.questions.map(({ label, prompt, required }) => ({
+              label,
+              prompt,
+              required,
+            }))
+          : [{ label: 'About you', prompt: 'Tell us about yourself.', required: true }],
+      });
+    }
+  }, [feature.data]);
   const updateQuestion = (index, key, value) =>
     setForm({
       ...form,
@@ -1054,9 +1074,18 @@ function ApplicationsPage() {
           <button
             type="button"
             className="button"
+            disabled={feature.saving}
             onClick={() => feature.save(form)}
           >
             <Save size={16} /> Save form
+          </button>
+          <button
+            type="button"
+            className="button button-ghost"
+            disabled={feature.saving}
+            onClick={() => feature.save({ ...form, publish: true })}
+          >
+            <Send size={16} /> Publish form
           </button>
         </Card>
         <Card
