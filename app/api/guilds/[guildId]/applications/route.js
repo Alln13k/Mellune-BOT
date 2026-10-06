@@ -34,8 +34,24 @@ const GET = featureRoute(async ({ guildId }) => {
   });
 });
 
-const POST = featureRoute(async ({ request, guildId }) => {
+const POST = featureRoute(async ({ request, guildId, session }) => {
   const body = await readBody(request);
+  if (body.action === 'review') {
+    const status = ['PENDING', 'APPROVED', 'REJECTED'].includes(body.status)
+      ? body.status
+      : null;
+    if (!status) throw new Error('Invalid application status.');
+    const updated = await prisma.applicationSubmission.updateMany({
+      where: { id: Number(body.id), guildId },
+      data: {
+        status,
+        reviewerId: session.user.id,
+        notes:
+          typeof body.notes === 'string' ? body.notes.slice(0, 2000) : null,
+      },
+    });
+    return response({ updated: updated.count });
+  }
   const data = {
     title: text(body.title, 100, 'New application'),
     description: text(body.description, 1000, 'Answer the questions below.'),

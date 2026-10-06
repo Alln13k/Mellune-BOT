@@ -16,6 +16,9 @@ const GET = featureRoute(async ({ guildId }) => {
   ]);
   return response({
     roles: resources.roles,
+    channels: resources.channels.filter((channel) =>
+      [0, 5].includes(channel.type),
+    ),
     panels,
     botRole: resources.roles.sort((a, b) => b.position - a.position)[0] || null,
   });
@@ -31,6 +34,31 @@ const POST = featureRoute(async ({ request, guildId }) => {
       hoist: body.hoist === true,
       mentionable: body.mentionable === true,
       requestedBy: body.requestedBy,
+    });
+    return response({ queued: true, jobId: job.id }, 202);
+  }
+  if (action === 'panel') {
+    const channelId = snowflake(body.channelId);
+    const roles = Array.isArray(body.roles)
+      ? body.roles
+          .slice(0, 5)
+          .map((role) => ({
+            roleId: snowflake(role.roleId),
+            label: text(role.label, 80, 'Role'),
+          }))
+          .filter((role) => role.roleId)
+      : [];
+    if (!channelId || !roles.length)
+      throw new Error('Choose a channel and at least one role.');
+    const job = await queueJob(prisma, guildId, 'SEND_ROLE_PANEL', {
+      channelId,
+      title: text(body.title, 100, 'Choose your roles'),
+      description: text(
+        body.description,
+        1000,
+        'Select a button to update your roles.',
+      ),
+      roles,
     });
     return response({ queued: true, jobId: job.id }, 202);
   }

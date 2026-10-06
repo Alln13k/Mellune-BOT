@@ -48,15 +48,28 @@ module.exports = {
         },
       });
     } else if (subcommand === 'welcome') {
+      const channelId = interaction.options.getChannel('channel').id;
       await prisma.welcomeConfig.upsert({
         where: { guildId: interaction.guild.id },
         update: {
-          channelId: interaction.options.getChannel('channel').id,
+          channelId,
           enabled: true,
         },
         create: {
           guildId: interaction.guild.id,
-          channelId: interaction.options.getChannel('channel').id,
+          channelId,
+          enabled: true,
+        },
+      });
+      await prisma.greetingConfig.upsert({
+        where: {
+          guildId_kind: { guildId: interaction.guild.id, kind: 'WELCOME' },
+        },
+        update: { channelId, enabled: true },
+        create: {
+          guildId: interaction.guild.id,
+          kind: 'WELCOME',
+          channelId,
           enabled: true,
         },
       });

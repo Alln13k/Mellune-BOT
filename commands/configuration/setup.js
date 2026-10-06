@@ -28,6 +28,30 @@ module.exports = {
       update: {},
       create: { guildId: interaction.guild.id },
     });
+    await prisma.greetingConfig.upsert({
+      where: {
+        guildId_kind: { guildId: interaction.guild.id, kind: 'WELCOME' },
+      },
+      update: {},
+      create: {
+        guildId: interaction.guild.id,
+        kind: 'WELCOME',
+        title: 'Welcome to {server}',
+        description: 'Welcome {user}!',
+      },
+    });
+    await prisma.greetingConfig.upsert({
+      where: {
+        guildId_kind: { guildId: interaction.guild.id, kind: 'GOODBYE' },
+      },
+      update: {},
+      create: {
+        guildId: interaction.guild.id,
+        kind: 'GOODBYE',
+        title: 'Goodbye',
+        description: '{username} has left {server}.',
+      },
+    });
     await prisma.logConfig.upsert({
       where: { guildId: interaction.guild.id },
       update: {},

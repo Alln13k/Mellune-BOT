@@ -26,9 +26,16 @@ function getChannelId(config, event) {
       ? config.events
       : DEFAULT_EVENTS;
   if (events[event] === false) return null;
-  return events[event] && typeof events[event] === 'string'
-    ? events[event]
-    : config.memberLogId;
+  if (events[event] && typeof events[event] === 'string') return events[event];
+  if (
+    [EVENT_KEYS.MODERATION, EVENT_KEYS.AUTOMOD, EVENT_KEYS.RAID].includes(event)
+  ) {
+    return config.moderationLogId || config.memberLogId;
+  }
+  if ([EVENT_KEYS.MESSAGE_DELETE, EVENT_KEYS.MESSAGE_EDIT].includes(event)) {
+    return config.messageLogId || config.memberLogId;
+  }
+  return config.memberLogId;
 }
 
 async function getLogConfig(prisma, guildId) {
@@ -44,8 +51,8 @@ async function sendLog(client, guild, event, title, description, fields = []) {
   const embed = new EmbedBuilder()
     .setColor(MELLUNE_PURPLE)
     .setTitle(title)
-    .setDescription(description || null)
     .setTimestamp();
+  if (description) embed.setDescription(description);
   if (fields.length) embed.addFields(fields);
   await channel.send({ embeds: [embed] });
   return true;

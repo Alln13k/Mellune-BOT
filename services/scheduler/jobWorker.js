@@ -172,6 +172,46 @@ async function executeJob(client, job) {
     });
     return message;
   }
+  if (job.type === 'SEND_ROLE_PANEL') {
+    const {
+      ActionRowBuilder,
+      ButtonBuilder,
+      ButtonStyle,
+      EmbedBuilder,
+    } = require('discord.js');
+    const message = await sendToChannel(client, payload.channelId, {
+      embeds: [
+        new EmbedBuilder()
+          .setColor('#b9a7ff')
+          .setTitle(payload.title || 'Choose your roles')
+          .setDescription(
+            payload.description || 'Select a button to update your roles.',
+          ),
+      ],
+      components: [
+        new ActionRowBuilder().addComponents(
+          ...payload.roles
+            .slice(0, 5)
+            .map((role) =>
+              new ButtonBuilder()
+                .setCustomId(`role-toggle:${role.roleId}`)
+                .setLabel(role.label)
+                .setStyle(ButtonStyle.Secondary),
+            ),
+        ),
+      ],
+    });
+    await client.prisma.reactionRole.createMany({
+      data: payload.roles.slice(0, 5).map((role) => ({
+        guildId: job.guildId,
+        channelId: payload.channelId,
+        messageId: message.id,
+        roleId: role.roleId,
+        label: role.label,
+      })),
+    });
+    return message;
+  }
   if (job.type === 'SEND_REMINDER') {
     return sendToChannel(client, payload.channelId, {
       content: `<@${payload.userId}> ${payload.message}`,

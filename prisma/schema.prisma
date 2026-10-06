@@ -261,10 +261,12 @@ model ReactionRole {
   id        Int    @id @default(autoincrement())
   guildId   String
   channelId String
-  messageId String @unique
+  messageId String
   roleId    String
   label     String
   guild     Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, messageId])
 }
 
 model CustomCommand {

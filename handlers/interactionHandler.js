@@ -22,18 +22,45 @@ async function createTicketFromCategory(interaction, prisma, categoryId) {
   });
   if (!category)
     throw new Error('This ticket category is no longer available.');
-  const existing = await prisma.ticket.findFirst({
+  const existingCount = await prisma.ticket.count({
     where: {
       guildId: interaction.guild.id,
       creatorId: interaction.user.id,
       status: 'OPEN',
-      ...(category.maxOpen ? { categoryId: category.id } : {}),
+      categoryId: category.id,
     },
   });
-  if (existing)
+  if (existingCount >= (category.maxOpen || 1)) {
+    const existing = await prisma.ticket.findFirst({
+      where: {
+        guildId: interaction.guild.id,
+        creatorId: interaction.user.id,
+        status: 'OPEN',
+        categoryId: category.id,
+      },
+    });
     throw new Error(
-      `You already have an open ticket: <#${existing.channelId}>`,
+      `You already have ${existingCount} open ticket(s).${
+        existing ? ` Latest: <#${existing.channelId}>` : ''
+      }`,
     );
+  }
+  if (category.cooldownSeconds) {
+    const recent = await prisma.ticket.findFirst({
+      where: {
+        guildId: interaction.guild.id,
+        creatorId: interaction.user.id,
+        categoryId: category.id,
+        createdAt: {
+          gte: new Date(Date.now() - category.cooldownSeconds * 1000),
+        },
+      },
+    });
+    if (recent)
+      throw new Error(
+        'Please wait before opening another ticket in this category.',
+      );
+  }
   const staffRoles = Array.isArray(category.staffRoleIds)
     ? category.staffRoleIds
     : [];
@@ -219,11 +246,14 @@ async function handleComponent(interaction, prisma) {
     );
   }
   if (action === 'role-toggle') {
-    const panel = await prisma.reactionRole.findUnique({
-      where: { messageId: interaction.message.id },
+    const panel = await prisma.reactionRole.findFirst({
+      where: {
+        messageId: interaction.message.id,
+        guildId: interaction.guild.id,
+        roleId: rawId,
+      },
     });
-    if (!panel || panel.roleId !== rawId)
-      throw new Error('This role panel is no longer active.');
+    if (!panel) throw new Error('This role panel is no longer active.');
     const role = await interaction.guild.roles.fetch(rawId);
     if (
       !role ||

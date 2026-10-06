@@ -665,6 +665,13 @@ function RolesPage() {
     userId: '',
     roleId: '',
   });
+  const [panel, setPanel] = useState({
+    channelId: '',
+    title: 'Choose your roles',
+    description: 'Select a button to update your roles.',
+    label: 'Role',
+    panelRoleId: '',
+  });
   const roles = feature.data?.roles || [];
   return (
     <FeatureFrame
@@ -779,6 +786,60 @@ function RolesPage() {
           </button>
         </Card>
       </div>
+      <Card
+        title="Role panel"
+        description="Publish persistent buttons backed by database definitions."
+      >
+        <div className="form-row">
+          <SelectField
+            label="Channel"
+            value={panel.channelId}
+            onChange={(value) => setPanel({ ...panel, channelId: value })}
+            options={feature.data?.channels || []}
+          />
+          <Field label="Role id">
+            <input
+              value={panel.panelRoleId}
+              onChange={(event) =>
+                setPanel({ ...panel, panelRoleId: event.target.value })
+              }
+            />
+          </Field>
+        </div>
+        <div className="form-row">
+          <Field label="Button label">
+            <input
+              value={panel.label}
+              onChange={(event) =>
+                setPanel({ ...panel, label: event.target.value })
+              }
+            />
+          </Field>
+          <Field label="Panel title">
+            <input
+              value={panel.title}
+              onChange={(event) =>
+                setPanel({ ...panel, title: event.target.value })
+              }
+            />
+          </Field>
+        </div>
+        <button
+          type="button"
+          className="button"
+          onClick={() =>
+            feature.save({
+              action: 'panel',
+              channelId: panel.channelId,
+              title: panel.title,
+              description: panel.description,
+              roles: [{ roleId: panel.panelRoleId, label: panel.label }],
+            })
+          }
+        >
+          <Send size={16} /> Publish role panel
+        </button>
+      </Card>
     </FeatureFrame>
   );
 }

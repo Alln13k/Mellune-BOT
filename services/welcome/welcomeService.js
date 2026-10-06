@@ -106,7 +106,17 @@ async function handleMemberJoin(prisma, member) {
   await ensureGuild(prisma, member.guild);
   await ensureUser(prisma, member.guild.id, member.user);
   const config = await getGreeting(prisma, member.guild.id, 'WELCOME');
-  if (!config?.enabled || member.user.bot) return;
+  if (member.user.bot) return;
+  if (!config?.enabled) {
+    await sendLog(
+      member.client,
+      member.guild,
+      EVENT_KEYS.MEMBER_JOIN,
+      'Member joined',
+      `${member.user} joined the server.`,
+    ).catch(() => {});
+    return;
+  }
 
   if (config.autoRoleId) {
     await member.roles
@@ -146,7 +156,17 @@ async function handleMemberJoin(prisma, member) {
 
 async function handleMemberLeave(prisma, member) {
   const config = await getGreeting(prisma, member.guild.id, 'GOODBYE');
-  if (!config?.enabled || member.user?.bot) return;
+  if (member.user?.bot) return;
+  if (!config?.enabled) {
+    await sendLog(
+      member.client,
+      member.guild,
+      EVENT_KEYS.MEMBER_LEAVE,
+      'Member left',
+      `${member.user?.tag || member.id} left the server.`,
+    ).catch(() => {});
+    return;
+  }
   await sendGreeting(member, config, 'GOODBYE').catch((error) =>
     console.error('Leave message failed:', member.guild.id, error.message),
   );

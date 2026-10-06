@@ -19,9 +19,15 @@ module.exports = {
     const target = await interaction.guild.members.fetch(
       interaction.options.getUser('member').id,
     );
-    const check = canModerate(interaction.member, target, interaction.guild.members.me);
-    if (!check.ok) return interaction.reply({ content: check.reason, ephemeral: true });
-    const reason = interaction.options.getString('reason') || 'No reason provided.';
+    const check = canModerate(
+      interaction.member,
+      target,
+      interaction.guild.members.me,
+    );
+    if (!check.ok)
+      return interaction.reply({ content: check.reason, ephemeral: true });
+    const reason =
+      interaction.options.getString('reason') || 'No reason provided.';
     await target.kick(reason);
     const record = await createCase(prisma, {
       guild: interaction.guild,
@@ -31,7 +37,12 @@ module.exports = {
       reason,
     });
     return interaction.reply({
-      embeds: [successEmbed('Member kicked', `${target.user} — Case **#${record.id}**`)],
+      embeds: [
+        successEmbed(
+          'Member kicked',
+          `${target.user} — Case **#${record.id}**`,
+        ),
+      ],
     });
   },
 };

@@ -10,7 +10,7 @@ function rememberJoin(guildId, member) {
   current.push({
     at: now,
     userId: member.id,
-    suspicious: now - member.user.createdTimestamp < 24 * 60 * 60_000,
+    createdAt: member.user.createdTimestamp,
   });
   joins.set(guildId, current);
   return current;
@@ -26,7 +26,11 @@ async function handleJoin(member, prisma) {
     (entry) => Date.now() - entry.at <= config.windowSeconds * 1000,
   );
   const suspicious = config.suspiciousOnly
-    ? recent.filter((entry) => entry.suspicious)
+    ? recent.filter(
+        (entry) =>
+          Date.now() - entry.createdAt <
+          config.minAccountAgeHours * 60 * 60_000,
+      )
     : recent;
   if (suspicious.length < config.joinThreshold) return false;
 
