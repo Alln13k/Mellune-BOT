@@ -765,13 +765,13 @@ function VoicePresencePage() {
     <FeatureFrame icon={Mic} title={CONFIG_TITLES['voice-presence'][0]}
       description={CONFIG_TITLES['voice-presence'][1]} error={feature.error} reload={feature.reload}
       actions={<SaveButton saving={feature.saving} onClick={() => feature.save(form)} />}>
-      <Card title="Voice presence" description="Mellune joins after startup and reconnects if Discord drops the connection.">
+      <Card title="Voice presence" description="Saving applies immediately. Mellune stays connected and reconnects if Discord drops the call.">
         <Toggle label="Stay in voice 24/7" checked={form.enabled}
           onChange={(enabled) => setForm({ ...form, enabled })} />
         <SelectField label="Voice channel" value={form.channelId}
           onChange={(channelId) => setForm({ ...form, channelId })}
           options={feature.data.channels || []}
-          hint="Only voice channels from this server are shown." />
+          hint="Pick a voice channel from this server. The bot joins it as soon as you save." />
       </Card>
     </FeatureFrame>
   );

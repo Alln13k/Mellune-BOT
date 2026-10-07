@@ -2,6 +2,7 @@ const { prisma } = require('../../../../../database/client');
 const {
   featureRoute,
   getResources,
+  queueJob,
   readBody,
   response,
   snowflake,
@@ -31,6 +32,10 @@ const POST = featureRoute(async ({ request, guildId }) => {
     where: { guildId },
     update: { enabled: body.enabled === true, channelId },
     create: { guildId, enabled: body.enabled === true, channelId },
+  });
+  await queueJob(prisma, guildId, 'SYNC_VOICE_PRESENCE', {
+    enabled: config.enabled,
+    channelId: config.channelId,
   });
   return response({ config });
 });
