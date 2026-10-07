@@ -308,7 +308,8 @@ test('the posted event message is image-only and declares its attachment', async
     { going: 0 },
     'attachment://event-card.png',
   );
-  assert.deepEqual(Object.keys(payload.embeds[0]).sort(), ['color', 'image']);
+  assert.deepEqual(Object.keys(payload.embeds[0]).sort(), ['color', 'image', 'title']);
+  assert.equal(payload.embeds[0].title, baseEvent.name);
   const form = multipartPayload(payload, Buffer.from('png'));
   const rawMetadata = form.get('payload_json');
   const metadata = JSON.parse(typeof rawMetadata === 'string' ? rawMetadata : await rawMetadata.text());
@@ -332,4 +333,18 @@ test('uploaded local images are kept as data URLs on the event', () => {
     timezone: 'UTC',
     imageUrl: 'javascript:alert(1)',
   }).imageUrl, null);
+});
+
+test('live event messages keep the event title and switch the card to started state', async () => {
+  const event = {
+    ...baseEvent,
+    name: 'Roblox game night',
+    startAt: new Date(Date.now() - 60_000),
+    endAt: new Date(Date.now() + 60_000),
+    status: 'LIVE',
+  };
+  const payload = buildEventPayload(event, { going: 0 }, 'attachment://event-card.png');
+  assert.equal(payload.embeds[0].title, 'Roblox game night');
+  const image = await buildEventCardPng(event, { going: 0 });
+  assert.ok(image.length > 10_000);
 });

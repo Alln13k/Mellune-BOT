@@ -59,7 +59,9 @@ async function inlineImage(url) {
 
 function eventCardSvg(event, counts, background) {
   const when = formatEventWhen(event);
-  const status = statusLabel(effectiveStatus(event));
+  const eventStatus = effectiveStatus(event);
+  const status = eventStatus === 'LIVE' ? 'EVENT STARTED' : statusLabel(eventStatus);
+  const statusHint = eventStatus === 'LIVE' ? 'The event is live' : 'Tap Going below';
   const going = counts.going || 0;
   const waiting = counts.waitlist || 0;
   const capacity = event.maxAttendees || null;
@@ -101,7 +103,7 @@ function eventCardSvg(event, counts, background) {
     <text x="78" y="590" fill="#b5c0d8" font-family="Inter" font-size="20">${waiting ? `${compactNumber(waiting)} waiting · ` : ''}Starts ${escapeSvg(when.date)} at ${escapeSvg(when.time)}</text>
     <rect x="784" y="424" width="300" height="92" rx="18" fill="#3C527F" fill-opacity="0.82"/>
     <text x="934" y="465" text-anchor="middle" fill="#ffffff" font-family="Inter" font-size="25" font-weight="700">${escapeSvg(status)}</text>
-    <text x="934" y="496" text-anchor="middle" fill="#d9e5ff" font-family="Inter" font-size="18">Tap Going below</text>
+    <text x="934" y="496" text-anchor="middle" fill="#d9e5ff" font-family="Inter" font-size="18">${escapeSvg(statusHint)}</text>
   </svg>`;
 }
 
@@ -124,6 +126,7 @@ function buildEventEmbed(event, counts = {}, renderedImageUrl = null) {
   if (renderedImageUrl) {
     return {
       color: colorInt(event.color),
+      title: event.name,
       image: { url: renderedImageUrl },
     };
   }
