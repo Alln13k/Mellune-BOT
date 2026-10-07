@@ -28,6 +28,7 @@ model Guild {
   raidConfig              RaidProtectionConfig?
   verificationConfig      VerificationConfig?
   temporaryVoiceConfig    TemporaryVoiceConfig?
+  voicePresenceConfig     VoicePresenceConfig?
   applicationForms        ApplicationForm[]
   reminders               Reminder[]
   applicationReviewEvents ApplicationReviewEvent[]
@@ -63,6 +64,16 @@ model GuildSettings {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   guild                 Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+model VoicePresenceConfig {
+  id        Int      @id @default(autoincrement())
+  guildId   String   @unique
+  enabled   Boolean  @default(false)
+  channelId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 }
 
 model User {

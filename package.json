@@ -21,6 +21,7 @@
     "node": ">=18.18.0"
   },
   "dependencies": {
+    "@discordjs/voice": "^0.19.2",
     "@prisma/client": "^6.16.0",
     "@resvg/resvg-js": "^2.6.2",
     "discord.js": "^14.22.1",
