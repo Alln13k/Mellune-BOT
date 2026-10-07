@@ -26,6 +26,7 @@ import {
   Database,
 } from 'lucide-react';
 import ActivityChart from './ActivityChart';
+import EventsPage from './EventsPage';
 import ApplicationsInbox from './ApplicationsPage';
 import { guildApi, useDashboard, useGuildData } from './DashboardContext';
 import { MELLUNE_DEFAULT_EMBED_COLOR } from '../../lib/constants';
@@ -2538,6 +2539,7 @@ export default function FeatureModule({ section }) {
     verification: VerificationPage,
     'temporary-voice': TemporaryVoicePage,
     'voice-presence': VoicePresencePage,
+    events: EventsPage,
     giveaways: CompleteGiveawaysPage,
     applications: ApplicationsPage,
     reminders: RemindersPage,

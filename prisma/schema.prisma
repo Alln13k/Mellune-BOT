@@ -46,6 +46,9 @@ model Guild {
   memberCounter           MemberCounterConfig?
   autoRoleConfig          AutoRoleConfig?
   backups                 ServerBackup[]
+  communityEvents         CommunityEvent[]
+  communityEventSeries    CommunityEventSeries[]
+  communityEventTemplates CommunityEventTemplate[]
 }
 
 model GuildSettings {
@@ -754,5 +757,175 @@ model ActivityEvent {
   guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@index([guildId, kind, createdAt])
+  @@index([guildId, createdAt])
+}
+
+model CommunityEventSeries {
+  id                 Int              @id @default(autoincrement())
+  guildId            String
+  name               String
+  description        String           @default("")
+  timezone           String           @default("UTC")
+  recurrence         String
+  interval           Int              @default(1)
+  weekdays           Json             @default("[]")
+  anchorStart        DateTime
+  durationMinutes    Int              @default(120)
+  location           String?
+  channelId          String?
+  imageUrl           String?
+  color              String           @default("#3C527F")
+  organizerId        String
+  maxAttendees       Int?
+  rsvpEnabled        Boolean          @default(true)
+  threadEnabled      Boolean          @default(false)
+  roleIds            Json             @default("[]")
+  roleMode           String           @default("ANY")
+  reminderConfig     Json             @default("[]")
+  embed              Json?
+  notifyConfig       Json?
+  kind               String           @default("General")
+  publishLeadMinutes Int              @default(10080)
+  enabled            Boolean          @default(true)
+  createdBy          String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  guild              Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  events             CommunityEvent[]
+
+  @@index([guildId, enabled])
+}
+
+model CommunityEventTemplate {
+  id        Int      @id @default(autoincrement())
+  guildId   String
+  name      String
+  payload   Json
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, name])
+  @@index([guildId])
+}
+
+model CommunityEvent {
+  id                 Int                           @id @default(autoincrement())
+  guildId            String
+  seriesId           Int?
+  templateId         Int?
+  name               String
+  description        String                        @default("")
+  startAt            DateTime
+  endAt              DateTime?
+  timezone           String                        @default("UTC")
+  location           String?
+  channelId          String?
+  imageUrl           String?
+  color              String                        @default("#3C527F")
+  organizerId        String
+  maxAttendees       Int?
+  rsvpEnabled        Boolean                       @default(true)
+  threadEnabled      Boolean                       @default(false)
+  threadId           String?
+  messageId          String?
+  messageHash        String?
+  status             String                        @default("DRAFT")
+  publishAt          DateTime?
+  publishedAt        DateTime?
+  endedAt            DateTime?
+  cancelledAt        DateTime?
+  seriesDetached     Boolean                       @default(false)
+  archiveThread      Boolean                       @default(true)
+  reminderConfig     Json                          @default("[]")
+  roleIds            Json                          @default("[]")
+  roleMode           String                        @default("ANY")
+  embed              Json?
+  notifyConfig       Json?
+  kind               String                        @default("General")
+  capacityNotifiedAt DateTime?
+  createdBy          String?
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
+  guild              Guild                         @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  series             CommunityEventSeries?         @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  rsvps              CommunityEventRsvp[]
+  waitlist           CommunityEventWaitlistEntry[]
+  reminders          CommunityEventReminder[]
+  logs               CommunityEventLog[]
+
+  @@index([guildId, status, startAt])
+  @@index([guildId, startAt])
+  @@index([seriesId, startAt])
+  @@index([publishAt, publishedAt])
+}
+
+model CommunityEventRsvp {
+  id          Int            @id @default(autoincrement())
+  eventId     Int
+  guildId     String
+  userId      String
+  username    String
+  displayName String?
+  avatar      String?
+  status      String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  event       CommunityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([guildId, userId])
+  @@index([eventId, status])
+}
+
+model CommunityEventWaitlistEntry {
+  id          Int            @id @default(autoincrement())
+  eventId     Int
+  guildId     String
+  userId      String
+  username    String
+  displayName String?
+  avatar      String?
+  position    Int
+  createdAt   DateTime       @default(now())
+  event       CommunityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId, position])
+  @@index([guildId, userId])
+}
+
+model CommunityEventReminder {
+  id               Int            @id @default(autoincrement())
+  eventId          Int
+  guildId          String
+  offsetMinutes    Int
+  targets          Json           @default("[\"DM\"]")
+  includeTentative Boolean        @default(false)
+  runAt            DateTime
+  sentAt           DateTime?
+  status           String         @default("PENDING")
+  error            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  event            CommunityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([eventId, status])
+  @@index([guildId])
+}
+
+model CommunityEventLog {
+  id        Int            @id @default(autoincrement())
+  eventId   Int
+  guildId   String
+  action    String
+  actorId   String?
+  metadata  Json?
+  createdAt DateTime       @default(now())
+  event     CommunityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt])
   @@index([guildId, createdAt])
 }

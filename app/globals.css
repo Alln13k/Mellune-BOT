@@ -1879,3 +1879,80 @@ code.chip {
     transition-duration: 0.01ms !important;
   }
 }
+
+.event-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.event-card,
+.event-person {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  text-align: left;
+}
+
+.event-person {
+  flex-direction: row;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.event-advanced,
+.weekday-row,
+.calendar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.calendar-cell {
+  min-height: 92px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.event-chip,
+.status-pill {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.event-chip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-upcoming,
+.status-live { background: rgba(60, 82, 127, 0.45); }
+.status-scheduled,
+.status-draft { background: rgba(255, 255, 255, 0.08); }
+.status-ended { background: rgba(255, 255, 255, 0.05); }
+.status-cancelled { background: rgba(176, 74, 90, 0.35); }
+
+.event-banner {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 14px;
+}
