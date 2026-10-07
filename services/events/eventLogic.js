@@ -267,22 +267,24 @@ function resequence(entries) {
 }
 
 const AUTOMATIC_REMINDERS = [
-  { offsetMinutes: 24 * 60, targets: ['DM'], includeTentative: false },
-  { offsetMinutes: 60, targets: ['DM'], includeTentative: false },
   { offsetMinutes: 15, targets: ['DM'], includeTentative: false },
+  { offsetMinutes: 0, targets: ['DM'], includeTentative: false },
 ];
 
 function normalizeReminders(input) {
   const source = asArray(input);
   return (source.length ? source : AUTOMATIC_REMINDERS).slice(0, 8).map((item) => {
-    const offsetMinutes = Math.min(60 * 24 * 30, Math.max(1, Number(item.offsetMinutes) || 0));
+    const rawOffset = Number(item.offsetMinutes);
+    const offsetMinutes = Number.isFinite(rawOffset)
+      ? Math.min(60 * 24 * 30, Math.max(0, rawOffset))
+      : -1;
     const targets = [...new Set(asArray(item.targets).filter((target) => ['DM', 'CHANNEL', 'THREAD'].includes(target)))];
     return {
       offsetMinutes,
       targets: targets.length ? targets : ['DM'],
       includeTentative: item.includeTentative === true,
     };
-  }).filter((item) => item.offsetMinutes > 0);
+  }).filter((item) => item.offsetMinutes >= 0);
 }
 
 function reminderRunAt(startAt, offsetMinutes) {

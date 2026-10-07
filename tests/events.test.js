@@ -14,7 +14,11 @@ const {
   statusLabel,
 } = require('../services/events/eventLogic');
 const { commitRsvp, deliverReminder } = require('../services/events/eventService');
-const { buildEventEmbed } = require('../services/events/eventMessage');
+const {
+  buildEventCardPng,
+  buildEventComponents,
+  buildEventEmbed,
+} = require('../services/events/eventMessage');
 
 const baseEvent = {
   id: 1,
@@ -243,7 +247,7 @@ test('slash event command can create and manage events without a long option lis
   const names = json.options.map((option) => option.name).sort();
   assert.deepEqual(names, ['cancel', 'create', 'edit', 'end', 'info', 'list', 'publish', 'remind']);
   const create = json.options.find((option) => option.name === 'create');
-  assert.ok(create.options.length <= 8);
+  assert.ok(create.options.length <= 9);
   assert.equal(typeof command.execute, 'function');
   assert.equal(typeof command.autocomplete, 'function');
 });
@@ -259,6 +263,7 @@ test('event embed shows the schedule, capacity and Mellune color', () => {
 test('reminder instants are stored before the event start', () => {
   const runAt = reminderRunAt('2026-10-10T18:00:00.000Z', 60);
   assert.equal(runAt.toISOString(), '2026-10-10T17:00:00.000Z');
+  assert.equal(reminderRunAt('2026-10-10T18:00:00.000Z', 0).toISOString(), '2026-10-10T18:00:00.000Z');
 });
 
 test('new events remind people automatically and use plain status names', () => {
@@ -269,8 +274,8 @@ test('new events remind people automatically and use plain status names', () => 
     timezone: 'Europe/Paris',
     channelId: '123456789012345678',
   });
-  assert.deepEqual(input.reminderConfig.map((reminder) => reminder.offsetMinutes), [1440, 60, 15]);
-  assert.deepEqual(input.reminderConfig.map((reminder) => reminder.targets), [['DM'], ['DM'], ['DM']]);
+  assert.deepEqual(input.reminderConfig.map((reminder) => reminder.offsetMinutes), [15, 0]);
+  assert.deepEqual(input.reminderConfig.map((reminder) => reminder.targets), [['DM'], ['DM']]);
   assert.equal(input.notifyConfig.cancelled, true);
   assert.equal(input.notifyConfig.rescheduled, true);
   assert.equal(input.notifyConfig.waitlistPromoted, true);
@@ -281,4 +286,16 @@ test('new events remind people automatically and use plain status names', () => 
   const embed = buildEventEmbed({ ...baseEvent, organizerId: '999' }, { going: 1 });
   assert.doesNotMatch(embed.fields.find((field) => field.name === 'Status').value, /UPCOMING|DRAFT|LIVE|ENDED/);
   assert.match(embed.footer.text, /automatic/i);
+});
+
+test('published events can be joined immediately and refresh their RSVP controls', () => {
+  const rows = buildEventComponents({ ...baseEvent, status: 'UPCOMING' }, { going: 1 });
+  assert.equal(rows[0].components.every((button) => button.disabled === false), true);
+  assert.equal(rows[0].components[0].label, 'Going');
+});
+
+test('event cards render as PNGs with live attendance data', async () => {
+  const image = await buildEventCardPng({ ...baseEvent, maxAttendees: 10 }, { going: 1, waitlist: 2 });
+  assert.equal(image.readUInt32BE(0), 0x89504e47);
+  assert.ok(image.length > 10_000);
 });

@@ -42,9 +42,8 @@ const ZONE_LABELS = {
   'Australia/Sydney': 'Sydney',
 };
 const AUTOMATIC_REMINDERS = [
-  { offsetMinutes: 24 * 60, targets: ['DM'], includeTentative: false },
-  { offsetMinutes: 60, targets: ['DM'], includeTentative: false },
   { offsetMinutes: 15, targets: ['DM'], includeTentative: false },
+  { offsetMinutes: 0, targets: ['DM'], includeTentative: false },
 ];
 
 function defaultZone() {
@@ -60,6 +59,7 @@ function defaultZone() {
 const blankForm = () => ({
   name: '',
   description: '',
+  imageUrl: '',
   date: '',
   time: '',
   timezone: defaultZone(),
@@ -77,6 +77,7 @@ function payloadFromForm(form) {
   return {
     name: form.name,
     description: form.description,
+    imageUrl: form.imageUrl,
     date: form.date,
     time: form.time,
     timezone: form.timezone,
@@ -177,6 +178,7 @@ export default function EventsPage() {
       ...blankForm(),
       name: detail.name || '',
       description: detail.description || '',
+      imageUrl: detail.imageUrl || '',
       date: start.date,
       time: start.time,
       timezone: TIMEZONES.includes(detail.timezone) ? detail.timezone : 'UTC',
@@ -304,6 +306,9 @@ export default function EventsPage() {
         <Field label="What is it about?" hint="Optional. Shown on the Discord message.">
           <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Bring a game. We start on time." />
         </Field>
+        <Field label="Event image URL" hint="Optional. Use a direct image link (Imgur, CDN, or similar). Without one, Mellune uses the server icon.">
+          <input type="url" value={form.imageUrl} onChange={(event) => setForm({ ...form, imageUrl: event.target.value })} placeholder="https://i.imgur.com/..." />
+        </Field>
         <div className="form-row">
           <Field label="Date"><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></Field>
           <Field label="Time"><input type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} /></Field>
@@ -322,7 +327,7 @@ export default function EventsPage() {
             placeholder="No limit"
           />
         </div>
-        <p className="subtle">People who tap Going get a DM 1 day before, 1 hour before, and 15 minutes before. A full event starts a waitlist and DMs the next person when a spot opens. Cancelling or moving the time also sends a DM.</p>
+        <p className="subtle">People can tap Going as soon as this is posted. They get a DM 15 minutes before and when it starts. A full event starts a waitlist and DMs the next person when a spot opens. Cancelling or moving the time also sends a DM.</p>
         <div className="moderation-action-grid">
           {editingId && (
             <button type="button" className="button button-ghost" onClick={() => { setEditingId(null); setEditingPosted(false); setForm(blankForm()); }}>

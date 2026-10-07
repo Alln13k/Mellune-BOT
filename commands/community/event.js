@@ -39,7 +39,8 @@ module.exports = {
       .addStringOption((option) => option.setName('description').setDescription('What members should know').setMaxLength(1000))
       .addStringOption((option) => option.setName('location').setDescription('Location or room name').setMaxLength(100))
       .addIntegerOption((option) => option.setName('capacity').setDescription('Maximum attendees').setMinValue(1).setMaxValue(5000))
-      .addStringOption((option) => option.setName('timezone').setDescription('Timezone, for example Europe/Paris')))
+      .addStringOption((option) => option.setName('timezone').setDescription('Timezone, for example Europe/Paris'))
+      .addStringOption((option) => option.setName('image').setDescription('Optional direct image URL').setMaxLength(500)))
     .addSubcommand((sub) => sub
       .setName('list')
       .setDescription('See coming up, happening now, or finished events.')
@@ -160,6 +161,7 @@ async function createFromCommand(interaction, prisma) {
       channelId: interaction.options.getChannel('channel').id,
       description: interaction.options.getString('description') || '',
       location: interaction.options.getString('location') || '',
+      imageUrl: interaction.options.getString('image') || '',
       maxAttendees: interaction.options.getInteger('capacity'),
       durationMinutes: 120,
       publish: true,
@@ -168,7 +170,7 @@ async function createFromCommand(interaction, prisma) {
   });
   return interaction.editReply({
     content: event.messageId
-      ? `**${event.name}** is posted in <#${event.channelId}>. People who tap Going get a DM 1 day, 1 hour, and 15 minutes before.`
+      ? `**${event.name}** is posted in <#${event.channelId}>. People can tap Going now and get a DM 15 minutes before and when it starts.`
       : `**${event.name}** was saved, but Discord did not return a message.`,
   });
 }

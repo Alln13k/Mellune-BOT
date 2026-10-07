@@ -18,9 +18,11 @@ const {
 const {
   archiveEventThread,
   apiPayload,
+  buildEventCardPng,
   buildEventPayload,
   countResponses,
   createDiscussionThread,
+  multipartPayload,
   refreshEventMessage,
   scheduleMessageSync,
 } = require('./eventMessage');
@@ -245,10 +247,20 @@ async function syncEventMessageRest(prisma, event) {
   const counts = await countResponses(prisma, event.id);
   const hash = renderHash(event, counts);
   if (event.messageHash === hash) return event;
-  const built = buildEventPayload(event, counts);
+  const guild = await botFetch(`/guilds/${event.guildId}`).catch(() => null);
+  const background = event.imageUrl || (
+    guild?.icon
+      ? `https://cdn.discordapp.com/icons/${event.guildId}/${guild.icon}.png?size=512`
+      : null
+  );
+  const image = await buildEventCardPng(event, counts, background).catch((error) => {
+    console.error(`Event card render failed for ${event.id}:`, error.message);
+    return null;
+  });
+  const built = buildEventPayload(event, counts, image ? 'attachment://event-card.png' : null);
   await botFetch(`/channels/${event.channelId}/messages/${event.messageId}`, {
     method: 'PATCH',
-    body: JSON.stringify(apiPayload(built)),
+    body: image ? multipartPayload(built, image) : JSON.stringify(apiPayload(built)),
   });
   return prisma.communityEvent.update({
     where: { id: event.id },
@@ -284,7 +296,10 @@ async function afterRsvp(prisma, client, result) {
       data: { capacityNotifiedAt: new Date() },
     });
   }
-  scheduleMessageSync(client, result.event.id);
+  if (client) scheduleMessageSync(client, result.event.id);
+  else await syncEventMessageRest(prisma, result.event).catch((error) => {
+    console.error(`Event message sync failed for ${result.event.id}:`, error.message);
+  });
   return { ...result, counts };
 }
 
@@ -353,7 +368,20 @@ async function publishEvent(prisma, client, { guildId, eventId, actorId }) {
   if (event.publishedAt) return event;
   if (!event.channelId) throw inputError('Choose a channel before publishing.');
   const counts = await countResponses(prisma, event.id);
-  const built = buildEventPayload(event, counts);
+  const publishable = { ...event, publishedAt: new Date(), status: 'UPCOMING' };
+  const guild = client?.guilds
+    ? await client.guilds.fetch(guildId).catch(() => null)
+    : await botFetch(`/guilds/${guildId}`).catch(() => null);
+  const background = event.imageUrl || (
+    guild?.iconURL?.({ extension: 'png', size: 512 })
+    || (guild?.icon ? `https://cdn.discordapp.com/icons/${guildId}/${guild.icon}.png?size=512` : null)
+  );
+  const image = await buildEventCardPng(publishable, counts, background).catch((error) => {
+    console.error(`Event card render failed for ${event.id}:`, error.message);
+    return null;
+  });
+  const built = buildEventPayload(publishable, counts, image ? 'attachment://event-card.png' : null);
+  if (image && client) built.files = [{ attachment: image, name: 'event-card.png' }];
   let message;
   if (client) {
     const channel = await client.channels.fetch(event.channelId);
@@ -361,7 +389,7 @@ async function publishEvent(prisma, client, { guildId, eventId, actorId }) {
   } else {
     message = await botFetch(`/channels/${event.channelId}/messages`, {
       method: 'POST',
-      body: JSON.stringify(apiPayload(built)),
+      body: image ? multipartPayload(built, image) : JSON.stringify(apiPayload(built)),
     });
   }
   let threadId = event.threadId;
@@ -389,11 +417,11 @@ async function publishEvent(prisma, client, { guildId, eventId, actorId }) {
       messageId: message.id,
       threadId,
       status: 'UPCOMING',
+      messageHash: renderHash(publishable, counts),
     },
   });
   await replaceReminders(prisma, published);
   await logEvent(prisma, published, 'PUBLISHED', actorId, { messageId: message.id, threadId });
-  await refreshEventMessage(client, published.id);
   return published;
 }
 

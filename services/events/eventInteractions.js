@@ -25,7 +25,7 @@ async function handleEventInteraction(interaction, prisma) {
     : result.decision.action === 'noop'
       ? 'That answer is already saved.'
       : result.decision.status === 'GOING'
-        ? "You're going. You'll get a DM 1 day, 1 hour, and 15 minutes before it starts."
+        ? "You're going. You'll get a DM 15 minutes before and when it starts."
         : result.decision.status === 'TENTATIVE'
           ? "You're marked as maybe. Only people who are going get the automatic reminders."
           : "You're marked as can't go.";
