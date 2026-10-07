@@ -147,12 +147,6 @@ export const NAV_GROUPS = [
         icon: BellRing,
         blurb: 'Scheduled messages and personal reminders.',
       },
-      {
-        slug: 'profiles',
-        title: 'Profiles',
-        icon: Users,
-        blurb: 'Inspect real member activity and leveling profiles.',
-      },
     ],
   },
   {
