@@ -682,6 +682,11 @@ async function handleComponent(interaction, prisma) {
 function attachInteractionHandler(client, commands, prisma) {
   client.on('interactionCreate', async (interaction) => {
     try {
+      if (interaction.isAutocomplete()) {
+        const command = commands.get(interaction.commandName);
+        if (command?.autocomplete) await command.autocomplete(interaction, { prisma, client });
+        return;
+      }
       if (interaction.isChatInputCommand()) {
         const command = commands.get(interaction.commandName);
         if (!command) return;
