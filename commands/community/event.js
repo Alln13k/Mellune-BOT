@@ -9,7 +9,7 @@ const {
   sendReminderNow,
   updateEvent,
 } = require('../../services/events/eventService');
-const { formatEventWhen, isValidTimeZone } = require('../../services/events/eventLogic');
+const { formatEventWhen, isValidTimeZone, statusLabel } = require('../../services/events/eventLogic');
 const { requirePermission } = require('../../utils/permissions');
 
 function eventOption() {
@@ -23,11 +23,11 @@ function eventOption() {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('event')
-    .setDescription('Create and manage community events.')
+    .setDescription('Post an event. Reminders go out on their own.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((sub) => sub
       .setName('create')
-      .setDescription('Create and publish an event.')
+      .setDescription('Post an event. Going members are reminded automatically.')
       .addStringOption((option) => option.setName('name').setDescription('Event name').setRequired(true).setMaxLength(100))
       .addStringOption((option) => option.setName('date').setDescription('Start date, YYYY-MM-DD').setRequired(true))
       .addStringOption((option) => option.setName('time').setDescription('Start time, HH:mm').setRequired(true))
@@ -42,25 +42,23 @@ module.exports = {
       .addStringOption((option) => option.setName('timezone').setDescription('Timezone, for example Europe/Paris')))
     .addSubcommand((sub) => sub
       .setName('list')
-      .setDescription('List events.')
+      .setDescription('See coming up, happening now, or finished events.')
       .addStringOption((option) => option
         .setName('status')
         .setDescription('Which events to show')
         .addChoices(
-          { name: 'Upcoming', value: 'upcoming' },
-          { name: 'Live', value: 'live' },
-          { name: 'Past', value: 'past' },
-          { name: 'Drafts', value: 'drafts' },
-          { name: 'Scheduled', value: 'scheduled' },
+          { name: 'Coming up', value: 'coming' },
+          { name: 'Happening now', value: 'live' },
+          { name: 'Finished', value: 'past' },
           { name: 'Cancelled', value: 'cancelled' },
         )))
     .addSubcommand((sub) => sub
       .setName('info')
-      .setDescription('Show an event, its attendees and its waitlist.')
+      .setDescription('See who is going and who is waiting.')
       .addStringOption(eventOption()))
     .addSubcommand((sub) => sub
       .setName('edit')
-      .setDescription('Change one event.')
+      .setDescription('Change the name, time, channel, or capacity.')
       .addStringOption(eventOption())
       .addStringOption((option) => option.setName('name').setDescription('New name').setMaxLength(100))
       .addStringOption((option) => option.setName('date').setDescription('New date, YYYY-MM-DD'))
@@ -75,11 +73,11 @@ module.exports = {
       .addStringOption((option) => option.setName('timezone').setDescription('Timezone used for the new date')))
     .addSubcommand((sub) => sub
       .setName('publish')
-      .setDescription('Post a draft or scheduled event.')
+      .setDescription('Post an event that was not posted yet.')
       .addStringOption(eventOption()))
     .addSubcommand((sub) => sub
       .setName('cancel')
-      .setDescription('Cancel an event or its whole series.')
+      .setDescription('Cancel an event. People who are going get a DM.')
       .addStringOption(eventOption())
       .addStringOption((option) => option
         .setName('scope')
@@ -90,11 +88,11 @@ module.exports = {
         )))
     .addSubcommand((sub) => sub
       .setName('end')
-      .setDescription('End an event early.')
+      .setDescription('Mark an event as finished.')
       .addStringOption(eventOption()))
     .addSubcommand((sub) => sub
       .setName('remind')
-      .setDescription('Send the reminder to members who are going.')
+      .setDescription('DM everyone who is going, right now.')
       .addStringOption(eventOption())),
   async autocomplete(interaction, { prisma }) {
     const focused = interaction.options.getFocused().toLowerCase();
@@ -138,10 +136,10 @@ module.exports = {
     }
     if (sub === 'end') {
       const event = await endEvent(prisma, interaction.client, context);
-      return interaction.editReply({ content: `**${event.name}** is now ended.` });
+      return interaction.editReply({ content: `**${event.name}** is finished.` });
     }
     await sendReminderNow(prisma, interaction.client, context);
-    return interaction.editReply({ content: 'The reminder was sent to members who are going.' });
+    return interaction.editReply({ content: 'Reminder sent to everyone who is going.' });
   },
 };
 
@@ -166,26 +164,25 @@ async function createFromCommand(interaction, prisma) {
       durationMinutes: 120,
       publish: true,
       organizerId: interaction.user.id,
-      reminders: [{ offsetMinutes: 60, targets: ['DM'], includeTentative: false }],
     },
   });
   return interaction.editReply({
     content: event.messageId
-      ? `**${event.name}** is posted in <#${event.channelId}>.`
+      ? `**${event.name}** is posted in <#${event.channelId}>. People who tap Going get a DM 1 day, 1 hour, and 15 minutes before.`
       : `**${event.name}** was saved, but Discord did not return a message.`,
   });
 }
 
 async function listFromCommand(interaction, prisma) {
   const listed = await listEvents(prisma, interaction.guild.id, {
-    bucket: interaction.options.getString('status') || 'upcoming',
+    bucket: interaction.options.getString('status') || 'coming',
     page: 1,
   });
-  if (!listed.items.length) return interaction.editReply({ content: 'No events in that view.' });
+  if (!listed.items.length) return interaction.editReply({ content: 'Nothing here yet.' });
   const lines = listed.items.slice(0, 10).map((event) => {
     const when = formatEventWhen(event);
     const capacity = event.maxAttendees ? ` / ${event.maxAttendees}` : '';
-    return `**${event.name}** · ${when.date} ${when.time} · ${event.status} · ${event.counts.going}${capacity} going`;
+    return `**${event.name}** · ${when.date} ${when.time} · ${statusLabel(event.status)} · ${event.counts.going}${capacity} going`;
   });
   return interaction.editReply({ content: lines.join('\n').slice(0, 1900) });
 }
@@ -198,7 +195,7 @@ async function infoFromCommand(interaction, prisma, context) {
   const waiting = event.attendees.waitlist.slice(0, 10).map((person) => `#${person.position} ${person.displayName}`).join(', ') || 'Empty';
   return interaction.editReply({
     content: [
-      `**${event.name}** · ${event.status}`,
+      `**${event.name}** · ${statusLabel(event.status)}`,
       `${when.date} · ${when.time}${when.end ? ` – ${when.end}` : ''} (${when.timeZone})`,
       event.location ? `Location: ${event.location}` : null,
       `Going: ${event.counts.going}${event.maxAttendees ? ` / ${event.maxAttendees}` : ''} · ${going}`,

@@ -3,6 +3,7 @@ const {
   effectiveStatus,
   formatEventWhen,
   renderHash,
+  statusLabel,
 } = require('./eventLogic');
 
 const MELLUNE_DEFAULT_COLOR_INT = Number.parseInt(MELLUNE_DEFAULT_EMBED_COLOR.slice(1), 16);
@@ -27,7 +28,7 @@ function buildEventEmbed(event, counts = {}) {
   const embed = {
     color: colorInt(event.color),
     title: event.embed?.title || event.name,
-    description: event.embed?.description || event.description || 'Join us for this event.',
+    description: event.embed?.description || event.description || 'Tap **Going** if you will be there. Mellune DMs you 1 day, 1 hour, and 15 minutes before.',
     fields: [
       { name: 'Date', value: `📅 ${when.date}\n<t:${unix}:D>`, inline: true },
       {
@@ -37,10 +38,10 @@ function buildEventEmbed(event, counts = {}) {
       },
       { name: 'Location', value: `📍 ${location}`.slice(0, 1024), inline: true },
       { name: 'Attendees', value: `👥 ${going}${capacity ? ` / ${capacity}` : ''} going`, inline: true },
-      { name: 'Available spots', value: capacity ? `🎟️ ${spots}` : '🎟️ Unlimited', inline: true },
-      { name: 'Status', value: `⏳ ${status}\n<t:${unix}:R>`, inline: true },
+      { name: 'Available spots', value: capacity ? `🎟️ ${spots} left` : '🎟️ No limit', inline: true },
+      { name: 'Status', value: `${statusLabel(status)}\n<t:${unix}:R>`, inline: true },
     ],
-    footer: { text: `Organizer ${event.organizerId}` },
+    footer: { text: 'Going gets an automatic DM 1 day, 1 hour, and 15 minutes before.' },
   };
   if (event.imageUrl) embed.image = { url: event.imageUrl };
   return embed;
@@ -64,12 +65,12 @@ function buildEventComponents(event, counts = {}) {
     type: 1,
     components: [
       eventButton(event.id, 'going', 'Going', 3, closed),
-      eventButton(event.id, 'tentative', 'Tentative', 2, closed),
-      eventButton(event.id, 'declined', 'Declined', 4, closed),
+      eventButton(event.id, 'tentative', 'Maybe', 2, closed),
+      eventButton(event.id, 'declined', "Can't go", 4, closed),
     ],
   }];
   if (full && !closed) {
-    rows.push({ type: 1, components: [eventButton(event.id, 'waitlist', 'Join waitlist', 1)] });
+    rows.push({ type: 1, components: [eventButton(event.id, 'waitlist', 'Join the waitlist', 1)] });
   }
   return rows;
 }

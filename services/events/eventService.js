@@ -799,7 +799,7 @@ async function deliverReminder(prisma, client, reminder) {
   const targets = asArray(reminder.targets);
   const errors = [];
   const unix = Math.floor(new Date(event.startAt).getTime() / 1000);
-  const content = `⏳ **${event.name}** starts <t:${unix}:R>.`;
+  const content = `**${event.name}** starts <t:${unix}:R> (<t:${unix}:F>).`;
   const mentions = people.slice(0, 20);
   if (targets.includes('CHANNEL') && event.channelId) {
     const body = {
@@ -832,7 +832,8 @@ async function deliverReminder(prisma, client, reminder) {
   }
   if (targets.includes('DM')) {
     for (const person of people) {
-      const sent = await notifyUser(client, person.userId, `${content}\nYou are marked as ${person.status.toLowerCase()}.`);
+      const answer = person.status === 'TENTATIVE' ? "You're marked as maybe." : "You're going.";
+      const sent = await notifyUser(client, person.userId, `${content}\n${answer}`);
       if (!sent) errors.push(person.userId);
     }
   }

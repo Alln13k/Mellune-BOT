@@ -168,8 +168,23 @@ function effectiveStatus(event, now = new Date()) {
   return 'UPCOMING';
 }
 
+const STATUS_LABELS = {
+  DRAFT: 'Not posted',
+  SCHEDULED: 'Posts later',
+  UPCOMING: 'Coming up',
+  LIVE: 'Happening now',
+  ENDED: 'Finished',
+  CANCELLED: 'Cancelled',
+};
+
+function statusLabel(status) {
+  return STATUS_LABELS[status] || 'Coming up';
+}
+
 function matchesBucket(event, bucket, now = new Date()) {
   const status = effectiveStatus(event, now);
+  if (!bucket || bucket === 'all' || bucket === 'calendar') return true;
+  if (bucket === 'coming') return status === 'UPCOMING' || status === 'DRAFT' || status === 'SCHEDULED';
   const buckets = {
     upcoming: 'UPCOMING',
     live: 'LIVE',
@@ -178,7 +193,6 @@ function matchesBucket(event, bucket, now = new Date()) {
     scheduled: 'SCHEDULED',
     cancelled: 'CANCELLED',
   };
-  if (!bucket || bucket === 'all' || bucket === 'calendar') return true;
   return status === buckets[bucket];
 }
 
@@ -252,8 +266,15 @@ function resequence(entries) {
     .map((entry, index) => ({ ...entry, position: index + 1 }));
 }
 
+const AUTOMATIC_REMINDERS = [
+  { offsetMinutes: 24 * 60, targets: ['DM'], includeTentative: false },
+  { offsetMinutes: 60, targets: ['DM'], includeTentative: false },
+  { offsetMinutes: 15, targets: ['DM'], includeTentative: false },
+];
+
 function normalizeReminders(input) {
-  return asArray(input).slice(0, 8).map((item) => {
+  const source = asArray(input);
+  return (source.length ? source : AUTOMATIC_REMINDERS).slice(0, 8).map((item) => {
     const offsetMinutes = Math.min(60 * 24 * 30, Math.max(1, Number(item.offsetMinutes) || 0));
     const targets = [...new Set(asArray(item.targets).filter((target) => ['DM', 'CHANNEL', 'THREAD'].includes(target)))];
     return {
@@ -496,6 +517,7 @@ module.exports = {
   cleanUrl,
   dateKey,
   decideRsvp,
+  AUTOMATIC_REMINDERS,
   defaultNotify,
   duplicateInput,
   effectiveStatus,
@@ -515,6 +537,7 @@ module.exports = {
   renderHash,
   resequence,
   snowflake,
+  statusLabel,
   utcParts,
   wallFields,
 };

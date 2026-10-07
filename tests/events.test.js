@@ -9,7 +9,9 @@ const {
   nextOccurrence,
   parseWallClock,
   planSeriesInstances,
+  normalizeEventInput,
   reminderRunAt,
+  statusLabel,
 } = require('../services/events/eventLogic');
 const { commitRsvp, deliverReminder } = require('../services/events/eventService');
 const { buildEventEmbed } = require('../services/events/eventMessage');
@@ -257,4 +259,26 @@ test('event embed shows the schedule, capacity and Mellune color', () => {
 test('reminder instants are stored before the event start', () => {
   const runAt = reminderRunAt('2026-10-10T18:00:00.000Z', 60);
   assert.equal(runAt.toISOString(), '2026-10-10T17:00:00.000Z');
+});
+
+test('new events remind people automatically and use plain status names', () => {
+  const input = normalizeEventInput({
+    name: 'Game night',
+    date: '2026-10-10',
+    time: '20:00',
+    timezone: 'Europe/Paris',
+    channelId: '123456789012345678',
+  });
+  assert.deepEqual(input.reminderConfig.map((reminder) => reminder.offsetMinutes), [1440, 60, 15]);
+  assert.deepEqual(input.reminderConfig.map((reminder) => reminder.targets), [['DM'], ['DM'], ['DM']]);
+  assert.equal(input.notifyConfig.cancelled, true);
+  assert.equal(input.notifyConfig.rescheduled, true);
+  assert.equal(input.notifyConfig.waitlistPromoted, true);
+  assert.equal(statusLabel('UPCOMING'), 'Coming up');
+  assert.equal(statusLabel('LIVE'), 'Happening now');
+  assert.equal(statusLabel('ENDED'), 'Finished');
+  assert.equal(statusLabel('CANCELLED'), 'Cancelled');
+  const embed = buildEventEmbed({ ...baseEvent, organizerId: '999' }, { going: 1 });
+  assert.doesNotMatch(embed.fields.find((field) => field.name === 'Status').value, /UPCOMING|DRAFT|LIVE|ENDED/);
+  assert.match(embed.footer.text, /automatic/i);
 });
