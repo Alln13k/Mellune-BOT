@@ -4,7 +4,7 @@
   "description": "A cozy, modular Discord moderation and community bot for Mellune.",
   "main": "index.js",
   "scripts": {
-    "start": "node scripts/generate-prisma.js && node index.js",
+    "start": "node scripts/generate-prisma.js && npm run prisma:migrate && node index.js",
     "dev": "node --watch index.js",
     "deploy:guild": "node scripts/deploy-commands.js guild",
     "deploy:global": "node scripts/deploy-commands.js global",
