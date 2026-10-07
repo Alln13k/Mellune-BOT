@@ -54,12 +54,14 @@ DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE"
 
 Never share these values, and never commit `.env`.
 
-Tables are already on Supabase. You only need `npx prisma generate` before `npm start` (skip `prisma migrate deploy` unless you add a new migration).
+`npm start` generates Prisma and applies any pending migrations before starting
+the bot. This keeps new dashboard features, such as always-on voice, in sync
+with the production database. Do not skip `prisma migrate deploy` when a new
+migration has been added.
 
 ## 5. Create tables and start the bot
 
 ```bash
-npx prisma generate
 npm start
 ```
 

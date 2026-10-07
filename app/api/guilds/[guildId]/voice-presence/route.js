@@ -8,7 +8,25 @@ const {
   snowflake,
 } = require('../../../../../lib/featureApi');
 
+async function ensureVoicePresenceTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "VoicePresenceConfig" (
+      "id" SERIAL NOT NULL,
+      "guildId" TEXT NOT NULL,
+      "enabled" BOOLEAN NOT NULL DEFAULT false,
+      "channelId" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "VoicePresenceConfig_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "VoicePresenceConfig_guildId_key" ON "VoicePresenceConfig"("guildId")`,
+  );
+}
+
 const GET = featureRoute(async ({ guildId }) => {
+  await ensureVoicePresenceTable();
   const [config, resources] = await Promise.all([
     prisma.voicePresenceConfig.findUnique({ where: { guildId } }),
     getResources(guildId),
@@ -20,6 +38,7 @@ const GET = featureRoute(async ({ guildId }) => {
 });
 
 const POST = featureRoute(async ({ request, guildId }) => {
+  await ensureVoicePresenceTable();
   const body = await readBody(request);
   const channelId = snowflake(body.channelId);
   const resources = await getResources(guildId);
