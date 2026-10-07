@@ -44,7 +44,7 @@ test('Prisma schema uses PostgreSQL through DATABASE_URL', () => {
   assert.match(lock, /provider\s*=\s*"postgresql"/);
 });
 
-test('slash commands are pushed globally and per-server copies are cleared', async () => {
+test('slash commands are pushed to each server and the slow global list is cleared', async () => {
   const { loadCommands } = require('../handlers/commandLoader');
   const { deploySlashCommands } = require('../handlers/commandDeployer');
   const commands = loadCommands(path.join(__dirname, '..', 'commands'));
@@ -79,9 +79,12 @@ test('slash commands are pushed globally and per-server copies are cleared', asy
 
   const count = await deploySlashCommands(client, commands);
   assert.ok(count >= 9);
-  assert.equal(client.globalBody.length, count);
+  assert.equal(client.globalBody.length, 0);
   assert.equal(guildPushes.length, 1);
-  assert.equal(guildPushes[0].count, 0);
+  assert.equal(guildPushes[0].count, count);
+  assert.ok(commands.has('event'));
+  assert.equal(commands.has('user'), false);
+  assert.equal(commands.has('rank'), false);
 });
 
 test('bot entry file is index.js', () => {

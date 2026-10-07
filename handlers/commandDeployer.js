@@ -14,12 +14,26 @@ async function deploySlashCommands(client, commands) {
     throw new Error('Discord application is not ready.');
   }
 
-  for (const guild of client.guilds.cache.values()) {
-    await clearGuildSlashCommands(guild);
+  // Global commands can take about an hour to replace, which left deleted
+  // commands visible and new ones such as /event missing. Guild commands update
+  // immediately, so they are the source of truth. The global list is cleared
+  // to avoid showing both copies.
+  await client.application.commands.set([]);
+  console.log('Cleared global slash commands.');
+
+  const guilds = typeof client.guilds.fetch === 'function'
+    ? await client.guilds.fetch()
+    : client.guilds.cache;
+  const entries = [...guilds.values()];
+  if (!entries.length) {
+    throw new Error('Mellune is not in a server, so slash commands were not published.');
   }
 
-  await client.application.commands.set(payload);
-  console.log(`Pushed ${payload.length} slash command(s) globally.`);
+  for (const entry of entries) {
+    const guild = entry.commands ? entry : await client.guilds.fetch(entry.id);
+    await guild.commands.set(payload);
+    console.log(`Pushed ${payload.length} slash command(s) to ${guild.name} (${guild.id}).`);
+  }
 
   return payload.length;
 }

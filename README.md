@@ -155,7 +155,7 @@ Other sections show a "being built" page until the bot supports them. Icons come
 
 **Missing environment variables**: copy `.env.example` to `.env` and fill `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, and `DATABASE_URL` (a `postgresql://` URL). `DEV_GUILD_ID` is required by `npm run deploy:guild`.
 
-**Commands appear twice**: restart the bot, then fully restart the Discord app (not just the tab). Per-server copies are removed on startup; leftover duplicates in the client cache go away after that refresh.
+**Commands are stale or appear twice**: restart the bot. It publishes the current commands directly to each server, which updates immediately, and clears the old global list. Fully restart the Discord app once so it drops the previous global cache.
 
 **Can't reach database / IPv6 errors**: use the **pooler** URLs from **Connect**, not the direct `db.<project>.supabase.co` host, unless your network supports IPv6.
 
