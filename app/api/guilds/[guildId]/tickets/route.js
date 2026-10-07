@@ -93,6 +93,8 @@ const GET = guildRoute(async ({ guildId }) => {
     channels: resources.channels.filter((channel) =>
       [0, 5].includes(channel.type),
     ),
+    categories: resources.channels.filter((channel) => channel.type === 4),
+    roles: resources.roles,
   });
 });
 

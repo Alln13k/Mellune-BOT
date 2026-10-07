@@ -35,6 +35,8 @@ import {
   ErrorNotice,
   Field,
   PageHeader,
+  RoleMultiSelect,
+  RoleSelect,
   Skeleton,
   Toggle,
   formatDate,
@@ -133,6 +135,7 @@ function SelectField({ label, value, onChange, options, hint }) {
   return (
     <Field label={label} hint={hint}>
       <select
+        className="select-control"
         value={value || ''}
         onChange={(event) => onChange(event.target.value)}
       >
@@ -546,14 +549,12 @@ function VerificationPage() {
           onChange={(value) => setForm({ ...form, channelId: value })}
           options={channels}
         />
-        <Field label="Role id">
-          <input
-            value={form.roleId || ''}
-            onChange={(event) =>
-              setForm({ ...form, roleId: event.target.value })
-            }
-          />
-        </Field>
+        <RoleSelect
+          label="Verification role"
+          value={form.roleId}
+          onChange={(value) => setForm({ ...form, roleId: value })}
+          roles={feature.data?.roles}
+        />
         <div className="form-row">
           <Field label="Title">
             <input
@@ -706,20 +707,13 @@ function TemporaryVoicePage() {
           checked={form.autoDelete !== false}
           onChange={(value) => setForm({ ...form, autoDelete: value })}
         />
-        <Field label="Staff role IDs (comma separated)">
-          <input
-            value={(form.staffRoleIds || []).join(', ')}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                staffRoleIds: event.target.value
-                  .split(',')
-                  .map((value) => value.trim())
-                  .filter(Boolean),
-              })
-            }
-          />
-        </Field>
+        <RoleMultiSelect
+          label="Staff roles"
+          value={form.staffRoleIds || []}
+          onChange={(staffRoleIds) => setForm({ ...form, staffRoleIds })}
+          roles={feature.data?.roles}
+          hint="Select the roles that can manage private temporary rooms."
+        />
       </Card>
       <Card
         title="Active voice rooms"
@@ -829,14 +823,12 @@ function RolesPage() {
           title="Safe role action"
           description="The bot checks its role hierarchy before applying changes."
         >
-          <Field label="Role id">
-            <input
-              value={form.roleId}
-              onChange={(event) =>
-                setForm({ ...form, roleId: event.target.value })
-              }
-            />
-          </Field>
+          <RoleSelect
+            label="Role"
+            value={form.roleId}
+            onChange={(value) => setForm({ ...form, roleId: value })}
+            roles={feature.data?.roles}
+          />
           <Field label="Member id">
             <input
               value={form.userId}
@@ -968,12 +960,12 @@ function RolesPage() {
                     onChange={(event) => updateEntry(index, 'emoji', event.target.value)}
                   />
                 </Field>
-                <Field label="Role id">
-                  <input
-                    value={entry.roleId}
-                    onChange={(event) => updateEntry(index, 'roleId', event.target.value)}
-                  />
-                </Field>
+                <RoleSelect
+                  label="Role"
+                  value={entry.roleId}
+                  onChange={(value) => updateEntry(index, 'roleId', value)}
+                  roles={feature.data?.roles}
+                />
               </div>
               <Field label="Label">
                 <input
@@ -1093,12 +1085,12 @@ function GiveawaysPage() {
               />
             </Field>
           </div>
-          <Field label="Required role id">
-            <input
-              value={form.requiredRoleId}
-              onChange={set('requiredRoleId')}
-            />
-          </Field>
+          <RoleSelect
+            label="Required role"
+            value={form.requiredRoleId}
+            onChange={(value) => setForm({ ...form, requiredRoleId: value })}
+            roles={feature.data?.roles}
+          />
           <button
             type="button"
             className="button"
@@ -1420,7 +1412,7 @@ function CompleteGiveawaysPage() {
     buttonLabel: 'Enter Giveaway',
     buttonEmoji: '🎉',
     requiredRoleId: '',
-    bonusRoleIds: '',
+    bonusRoleIds: [],
     minAccountAgeHours: 0,
     minMembershipHours: 0,
   });
@@ -1450,10 +1442,7 @@ function CompleteGiveawaysPage() {
       durationAmount: Number(form.durationAmount),
       minAccountAgeHours: Number(form.minAccountAgeHours),
       minMembershipHours: Number(form.minMembershipHours),
-      bonusRoleIds: form.bonusRoleIds
-        .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean),
+      bonusRoleIds: form.bonusRoleIds,
       action: 'start',
     });
     setForm((current) => ({ ...current, prize: '' }));
@@ -1578,15 +1567,20 @@ function CompleteGiveawaysPage() {
               <input value={form.buttonEmoji} onChange={set('buttonEmoji')} />
             </Field>
           </div>
-          <Field
-            label="Required role ID"
+          <RoleSelect
+            label="Required role"
             hint="Optional. Eligibility is checked by the bot when the button is clicked."
-          >
-            <input value={form.requiredRoleId} onChange={set('requiredRoleId')} />
-          </Field>
-          <Field label="Bonus role IDs" hint="Comma-separated. Each matching role adds one weighted entry.">
-            <input value={form.bonusRoleIds} onChange={set('bonusRoleIds')} />
-          </Field>
+            value={form.requiredRoleId}
+            onChange={(value) => setForm((current) => ({ ...current, requiredRoleId: value }))}
+            roles={feature.data?.roles}
+          />
+          <RoleMultiSelect
+            label="Bonus roles"
+            hint="Each selected role adds one weighted entry."
+            value={form.bonusRoleIds}
+            onChange={(bonusRoleIds) => setForm((current) => ({ ...current, bonusRoleIds }))}
+            roles={feature.data?.roles}
+          />
           <div className="form-row">
             <Field label="Minimum account age (hours)">
               <input type="number" min="0" value={form.minAccountAgeHours} onChange={set('minAccountAgeHours')} />
@@ -2134,14 +2128,12 @@ function AnnouncementsPage() {
             setForm({ ...form, allowEveryone: value, allowHere: value })
           }
         />
-        <Field label="Optional role id">
-          <input
-            value={form.roleId}
-            onChange={(event) =>
-              setForm({ ...form, roleId: event.target.value })
-            }
-          />
-        </Field>
+        <RoleSelect
+          label="Optional role"
+          value={form.roleId}
+          onChange={(value) => setForm({ ...form, roleId: value })}
+          roles={feature.data?.roles}
+        />
         <div className="form-row">
           <button
             type="button"
@@ -2372,14 +2364,12 @@ function SuggestionsPage() {
           onChange={(value) => setForm({ ...form, channelId: value })}
           options={feature.data.channels || []}
         />
-        <Field label="Review role id">
-          <input
-            value={form.staffRoleId || ''}
-            onChange={(event) =>
-              setForm({ ...form, staffRoleId: event.target.value })
-            }
-          />
-        </Field>
+        <RoleSelect
+          label="Review role"
+          value={form.staffRoleId}
+          onChange={(value) => setForm({ ...form, staffRoleId: value })}
+          roles={feature.data?.roles}
+        />
       </Card>
       <Card title="Recent suggestions">
         {feature.data.suggestions.length ? (

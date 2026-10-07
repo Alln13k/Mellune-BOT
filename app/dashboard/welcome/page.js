@@ -12,6 +12,7 @@ import {
   ErrorNotice,
   Field,
   PageHeader,
+  RoleSelect,
   Skeleton,
   Toggle,
 } from '../../../components/dashboard/ui';
@@ -254,17 +255,13 @@ export default function WelcomePage() {
                   onChange={set('dmEnabled')}
                   disabled={active !== 'WELCOME'}
                 />
-                <Field
-                  label="Auto-role id"
-                  hint="Optional. Mellune needs the Manage Roles permission and a role above the one assigned."
-                >
-                  <input
-                    inputMode="numeric"
-                    placeholder="Role id"
-                    value={form.autoRoleId ?? ''}
-                    onChange={(event) => set('autoRoleId')(event.target.value)}
-                  />
-                </Field>
+                <RoleSelect
+                  label="Auto-role"
+                  hint="Optional. Mellune needs Manage Roles and a role above the selected role."
+                  value={form.autoRoleId}
+                  onChange={set('autoRoleId')}
+                  roles={data?.roles}
+                />
               </Card>
             </div>
 

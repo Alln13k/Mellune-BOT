@@ -34,6 +34,7 @@ const GET = featureRoute(async ({ guildId }) => {
     config: { ...DEFAULTS, ...config },
     rooms,
     channels: resources.channels,
+    roles: resources.roles,
   });
 });
 
