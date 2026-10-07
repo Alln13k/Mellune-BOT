@@ -1,6 +1,7 @@
 import {
   BellRing,
   ChartColumn,
+  CalendarDays,
   ClipboardList,
   DoorOpen,
   Gavel,
@@ -116,6 +117,12 @@ export const NAV_GROUPS = [
         title: 'Live member counter',
         icon: Users,
         blurb: 'Display the real server member count in a locked voice channel.',
+      },
+      {
+        slug: 'events',
+        title: 'Events',
+        icon: CalendarDays,
+        blurb: 'Plan events, RSVPs, waitlists and reminders.',
       },
       {
         slug: 'giveaways',

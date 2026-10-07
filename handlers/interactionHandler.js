@@ -23,6 +23,7 @@ const {
   createSubmission,
   questionPlaceholder,
 } = require('../services/applications/applicationService');
+const { handleEventInteraction } = require('../services/events/eventInteractions');
 
 const ticketCreationLocks = new Set();
 
@@ -237,6 +238,9 @@ async function captureTranscript(channel) {
 }
 
 async function handleComponent(interaction, prisma) {
+  if (interaction.customId.startsWith('event:')) {
+    return handleEventInteraction(interaction, prisma);
+  }
   if (
     interaction.customId.startsWith('voice-room:') ||
     interaction.customId.startsWith('voice-modal:')

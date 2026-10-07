@@ -9,6 +9,7 @@ const {
   startGiveaway,
 } = require('../giveaways/giveawayService');
 const { connectGuild } = require('../voice/voicePresenceService');
+const { runEventMaintenance } = require('../events/eventService');
 
 const POLL_MS = 5000;
 
@@ -519,6 +520,7 @@ function startJobWorker(client) {
       await processDueReminders(client);
       await processScheduledAnnouncements(client);
       await processEndedGiveaways(client);
+      await runEventMaintenance(client);
     } catch (error) {
       console.error('Scheduler tick failed:', error.message);
     } finally {
