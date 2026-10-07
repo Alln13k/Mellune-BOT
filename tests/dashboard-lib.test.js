@@ -22,6 +22,8 @@ const { applyAutoRoles } = require('../services/autoRoles/autoRoleService');
 const {
   formatJoinDate,
   profileSvg,
+  renderProfilePng,
+  buildProfileMessage,
 } = require('../commands/utility/profile');
 
 const NOW = new Date('2026-10-06T12:30:00.000Z');
@@ -225,7 +227,7 @@ test('profile service calculates XP progress and guild rank from persisted data'
   assert.equal(profile.giveawaysWon, 1);
 });
 
-test('profile card stays compact and contains only essential member details', () => {
+test('profile card stays compact and contains only essential member details', async () => {
   const svg = profileSvg(
     {
       user: {
@@ -246,8 +248,49 @@ test('profile card stays compact and contains only essential member details', ()
   assert.match(svg, /LEVEL 1/);
   assert.match(svg, /150 XP needed for next level/);
   assert.match(svg, /Rank #4\s+·\s+Joined Oct 1, 2026/);
+  assert.match(
+    profileSvg(
+      {
+        user: { username: 'luna', displayName: 'Luna', joinedAt: null },
+        level: 1,
+        xp: 250,
+        nextXp: 400,
+        xpNeeded: 150,
+        progress: 50,
+        rank: 4,
+      },
+      { displayAvatarURL: () => null },
+    ),
+    /Rank #4\s+·\s+Join date unavailable/,
+  );
   assert.doesNotMatch(svg, /messages|tickets|giveaways/i);
   assert.equal(formatJoinDate(null), 'Join date unavailable');
+
+  const png = renderProfilePng(svg);
+  assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.equal(png.readUInt32BE(16), 1440);
+  assert.equal(png.readUInt32BE(20), 600);
+  assert.ok(png.length > 8_000);
+
+  const message = await buildProfileMessage(
+    {
+      user: {
+        username: 'luna',
+        displayName: 'Luna',
+        joinedAt: '2026-10-01T00:00:00.000Z',
+      },
+      level: 1,
+      xp: 250,
+      nextXp: 400,
+      xpNeeded: 150,
+      progress: 50,
+      rank: 4,
+    },
+    { displayAvatarURL: () => null },
+  );
+  assert.equal(message.embeds[0].data.image.url, 'attachment://profile.png');
+  assert.equal(message.files[0].name, 'profile.png');
+  assert.equal(message.files[0].attachment.subarray(0, 4).toString('hex'), '89504e47');
 });
 
 test('leveling reports a real level transition after XP is awarded', async () => {
