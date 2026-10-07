@@ -123,13 +123,6 @@ async function buildEventCardPng(event, counts = {}, backgroundUrl = null) {
 }
 
 function buildEventEmbed(event, counts = {}, renderedImageUrl = null) {
-  if (renderedImageUrl) {
-    return {
-      color: colorInt(event.color),
-      title: event.name,
-      image: { url: renderedImageUrl },
-    };
-  }
   const when = formatEventWhen(event);
   const going = counts.going || 0;
   const capacity = event.maxAttendees || null;
@@ -141,7 +134,7 @@ function buildEventEmbed(event, counts = {}, renderedImageUrl = null) {
   const embed = {
     color: colorInt(event.color),
     title: event.embed?.title || event.name,
-    description: event.embed?.description || event.description || 'Tap **Going** to join now. Mellune DMs you 15 minutes before and when it starts.',
+    description: event.embed?.description || event.description || 'Tap **Going** to join now.',
     fields: [
       { name: 'Date', value: `📅 ${when.date}\n<t:${unix}:D>`, inline: true },
       {
@@ -152,11 +145,11 @@ function buildEventEmbed(event, counts = {}, renderedImageUrl = null) {
       { name: 'Location', value: `📍 ${location}`.slice(0, 1024), inline: true },
       { name: 'Attendees', value: `👥 ${going}${capacity ? ` / ${capacity}` : ''} going`, inline: true },
       { name: 'Available spots', value: capacity ? `🎟️ ${spots} left` : '🎟️ No limit', inline: true },
-      { name: 'Status', value: `${statusLabel(status)}\n<t:${unix}:R>`, inline: true },
+      { name: 'Status', value: `${status === 'LIVE' ? 'EVENT STARTED' : statusLabel(status)}\n<t:${unix}:R>`, inline: true },
     ],
     footer: { text: 'Going gets an automatic DM 15 minutes before and when it starts.' },
   };
-  if (event.imageUrl) embed.image = { url: event.imageUrl };
+  if (renderedImageUrl) embed.image = { url: renderedImageUrl };
   return embed;
 }
 
