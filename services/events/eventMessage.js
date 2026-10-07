@@ -121,6 +121,12 @@ async function buildEventCardPng(event, counts = {}, backgroundUrl = null) {
 }
 
 function buildEventEmbed(event, counts = {}, renderedImageUrl = null) {
+  if (renderedImageUrl) {
+    return {
+      color: colorInt(event.color),
+      image: { url: renderedImageUrl },
+    };
+  }
   const when = formatEventWhen(event);
   const going = counts.going || 0;
   const capacity = event.maxAttendees || null;
@@ -147,8 +153,7 @@ function buildEventEmbed(event, counts = {}, renderedImageUrl = null) {
     ],
     footer: { text: 'Going gets an automatic DM 15 minutes before and when it starts.' },
   };
-  if (renderedImageUrl) embed.image = { url: renderedImageUrl };
-  else if (event.imageUrl) embed.image = { url: event.imageUrl };
+  if (event.imageUrl) embed.image = { url: event.imageUrl };
   return embed;
 }
 
@@ -191,7 +196,10 @@ function buildEventPayload(event, counts, renderedImageUrl = null) {
 
 function multipartPayload(payload, image) {
   const form = new globalThis.FormData();
-  form.append('payload_json', JSON.stringify(apiPayload(payload)));
+  form.append('payload_json', JSON.stringify({
+    ...apiPayload(payload),
+    attachments: [{ id: 0, filename: 'event-card.png' }],
+  }));
   form.append('files[0]', new globalThis.Blob([image], { type: 'image/png' }), 'event-card.png');
   return form;
 }

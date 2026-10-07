@@ -17,7 +17,9 @@ const { commitRsvp, deliverReminder } = require('../services/events/eventService
 const {
   buildEventCardPng,
   buildEventComponents,
+  buildEventPayload,
   buildEventEmbed,
+  multipartPayload,
 } = require('../services/events/eventMessage');
 
 const baseEvent = {
@@ -298,4 +300,17 @@ test('event cards render as PNGs with live attendance data', async () => {
   const image = await buildEventCardPng({ ...baseEvent, maxAttendees: 10 }, { going: 1, waitlist: 2 });
   assert.equal(image.readUInt32BE(0), 0x89504e47);
   assert.ok(image.length > 10_000);
+});
+
+test('the posted event message is image-only and declares its attachment', async () => {
+  const payload = buildEventPayload(
+    { ...baseEvent, status: 'UPCOMING' },
+    { going: 0 },
+    'attachment://event-card.png',
+  );
+  assert.deepEqual(Object.keys(payload.embeds[0]).sort(), ['color', 'image']);
+  const form = multipartPayload(payload, Buffer.from('png'));
+  const rawMetadata = form.get('payload_json');
+  const metadata = JSON.parse(typeof rawMetadata === 'string' ? rawMetadata : await rawMetadata.text());
+  assert.deepEqual(metadata.attachments, [{ id: 0, filename: 'event-card.png' }]);
 });
