@@ -10,7 +10,7 @@ const retryTimers = new Map();
 
 function clearRetry(guildId) {
   const timer = retryTimers.get(guildId);
-  if (timer) clearTimeout(timer);
+  if (timer) globalThis.clearTimeout(timer);
   retryTimers.delete(guildId);
 }
 
@@ -18,7 +18,7 @@ function scheduleConnect(client, guildId, delay = 5000) {
   clearRetry(guildId);
   retryTimers.set(
     guildId,
-    setTimeout(() => {
+    globalThis.setTimeout(() => {
       retryTimers.delete(guildId);
       connectGuild(client, guildId).catch((error) =>
         console.error(`Voice presence reconnect failed for ${guildId}:`, error.message),
