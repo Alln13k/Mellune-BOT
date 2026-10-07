@@ -1907,6 +1907,22 @@ code.chip {
   margin-top: 8px;
 }
 
+.event-image-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.event-image-preview {
+  width: 96px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .event-advanced,
 .weekday-row,
 .calendar-grid {

@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, Send } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { CalendarDays, ImagePlus, Send } from 'lucide-react';
 import { guildApi, useDashboard } from './DashboardContext';
 import { TIMEZONES, statusLabel, wallFields } from '../../services/events/eventLogic';
 import {
@@ -139,6 +139,7 @@ export default function EventsPage() {
   const [editingId, setEditingId] = useState(null);
   const [editingPosted, setEditingPosted] = useState(false);
   const [confirm, setConfirm] = useState(null);
+  const imageInput = useRef(null);
 
   const load = useCallback(async () => {
     if (!guild?.id) return;
@@ -306,8 +307,41 @@ export default function EventsPage() {
         <Field label="What is it about?" hint="Optional. Shown on the Discord message.">
           <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Bring a game. We start on time." />
         </Field>
-        <Field label="Event image URL" hint="Optional. Use a direct image link (Imgur, CDN, or similar). Without one, Mellune uses the server icon.">
-          <input type="url" value={form.imageUrl} onChange={(event) => setForm({ ...form, imageUrl: event.target.value })} placeholder="https://i.imgur.com/..." />
+        <Field label="Event image" hint="Optional. Upload a picture from your computer. Without one, Mellune uses the server icon.">
+          <input
+            ref={imageInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (!file) return;
+              if (file.size > 2 * 1024 * 1024) {
+                notify('Choose an image under 2 MB.', 'error');
+                return;
+              }
+              if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) {
+                notify('Use a PNG, JPG, WEBP, or GIF.', 'error');
+                return;
+              }
+              const reader = new FileReader();
+              reader.onload = () => setForm((current) => ({ ...current, imageUrl: String(reader.result || '') }));
+              reader.onerror = () => notify('That image could not be read.', 'error');
+              reader.readAsDataURL(file);
+            }}
+          />
+          <div className="event-image-upload">
+            {form.imageUrl ? <img className="event-image-preview" src={form.imageUrl} alt="" /> : null}
+            <button type="button" className="button button-ghost" onClick={() => imageInput.current?.click()}>
+              <ImagePlus size={16} /> {form.imageUrl ? 'Change image' : 'Upload image'}
+            </button>
+            {form.imageUrl ? (
+              <button type="button" className="button button-ghost" onClick={() => setForm({ ...form, imageUrl: '' })}>
+                Remove
+              </button>
+            ) : null}
+          </div>
         </Field>
         <div className="form-row">
           <Field label="Date"><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></Field>

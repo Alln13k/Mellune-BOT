@@ -148,6 +148,21 @@ function cleanUrl(value) {
   }
 }
 
+const DATA_IMAGE = /^data:image\/(png|jpe?g|webp|gif);base64,/i;
+const MAX_EVENT_IMAGE_CHARS = 3_500_000;
+
+function cleanImageSource(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const trimmed = value.trim();
+  if (DATA_IMAGE.test(trimmed)) {
+    if (trimmed.length > MAX_EVENT_IMAGE_CHARS) {
+      throw inputError('Choose an image under 2 MB.');
+    }
+    return trimmed;
+  }
+  return cleanUrl(trimmed);
+}
+
 function snowflake(value) {
   const cleaned = String(value || '').trim();
   return SNOWFLAKE.test(cleaned) ? cleaned : null;
@@ -339,7 +354,7 @@ function normalizeEventInput(body = {}, { actorId } = {}) {
     timezone,
     location: String(body.location || '').trim().slice(0, 120) || null,
     channelId: snowflake(body.channelId),
-    imageUrl: cleanUrl(body.imageUrl),
+    imageUrl: cleanImageSource(body.imageUrl),
     color,
     organizerId: snowflake(body.organizerId) || actorId || null,
     maxAttendees,
@@ -516,6 +531,7 @@ module.exports = {
   TIMEZONES,
   asArray,
   buildStats,
+  cleanImageSource,
   cleanUrl,
   dateKey,
   decideRsvp,
