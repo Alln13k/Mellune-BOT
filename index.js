@@ -15,6 +15,7 @@ const { startJobWorker } = require('./services/scheduler/jobWorker');
 const {
   cleanupTemporaryChannels,
 } = require('./services/voice/tempVoiceService');
+const { startVoicePresence } = require('./services/voice/voicePresenceService');
 
 async function start() {
   validateEnvironment();
@@ -33,6 +34,7 @@ async function start() {
   });
   client.prisma = prisma;
   client.stopJobWorker = null;
+  client.stopVoicePresence = null;
 
   const commands = loadCommands(path.join(__dirname, 'commands'));
   client.commands = commands;
@@ -43,6 +45,7 @@ async function start() {
       console.error('Temporary voice cleanup failed:', error.message),
     );
     client.stopJobWorker = startJobWorker(client);
+    client.stopVoicePresence = await startVoicePresence(client);
   });
 
   client.on('error', (error) => console.error('Discord client error:', error));
@@ -54,6 +57,7 @@ async function start() {
   );
   process.once('SIGINT', async () => {
     client.stopJobWorker?.();
+    client.stopVoicePresence?.();
     client.stopMemberCounterSync?.();
     await client.destroy();
     await disconnectDatabase();
