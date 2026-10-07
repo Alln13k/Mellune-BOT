@@ -8,6 +8,7 @@ const {
   rerollGiveaway,
   startGiveaway,
 } = require('../giveaways/giveawayService');
+const { connectGuild } = require('../voice/voicePresenceService');
 
 const POLL_MS = 5000;
 
@@ -371,6 +372,9 @@ async function executeJob(client, job) {
       count: payload.count,
       excludePrevious: payload.excludePrevious === true,
     });
+  }
+  if (job.type === 'SYNC_VOICE_PRESENCE') {
+    return connectGuild(client, job.guildId);
   }
   throw new Error(`Unknown bot job: ${job.type}`);
 }

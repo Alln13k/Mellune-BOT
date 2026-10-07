@@ -51,6 +51,7 @@ const CONFIG_ICONS = {
   giveaways: Gift,
   applications: ClipboardList,
   'temporary-voice': Mic,
+  'voice-presence': Mic,
   reminders: BellRing,
   embeds: Hammer,
   announcements: Megaphone,
@@ -93,6 +94,10 @@ const CONFIG_TITLES = {
   'temporary-voice': [
     'Temporary voice',
     'Create private voice rooms on demand and clean them up automatically.',
+  ],
+  'voice-presence': [
+    'Always-on voice',
+    'Keep Mellune in a chosen voice channel and reconnect it automatically.',
   ],
   reminders: ['Reminders', 'Schedule messages that are delivered by the bot.'],
   embeds: ['Embeds', 'Build and send real Discord embeds from this dashboard.'],
@@ -737,6 +742,36 @@ function TemporaryVoicePage() {
         ) : (
           <EmptyState icon={Mic} title="No active voice rooms" />
         )}
+      </Card>
+    </FeatureFrame>
+  );
+}
+
+function VoicePresencePage() {
+  const feature = useFeature('voice-presence');
+  const [form, setForm] = useState(null);
+  useEffect(() => {
+    if (feature.data) setForm(feature.data.config);
+  }, [feature.data]);
+  if (!form) {
+    return (
+      <FeatureFrame icon={Mic} title={CONFIG_TITLES['voice-presence'][0]}
+        description={CONFIG_TITLES['voice-presence'][1]} error={feature.error} reload={feature.reload}>
+        <Skeleton height={260} />
+      </FeatureFrame>
+    );
+  }
+  return (
+    <FeatureFrame icon={Mic} title={CONFIG_TITLES['voice-presence'][0]}
+      description={CONFIG_TITLES['voice-presence'][1]} error={feature.error} reload={feature.reload}
+      actions={<SaveButton saving={feature.saving} onClick={() => feature.save(form)} />}>
+      <Card title="Voice presence" description="Saving applies immediately. Mellune stays connected and reconnects if Discord drops the call.">
+        <Toggle label="Stay in voice 24/7" checked={form.enabled}
+          onChange={(enabled) => setForm({ ...form, enabled })} />
+        <SelectField label="Voice channel" value={form.channelId}
+          onChange={(channelId) => setForm({ ...form, channelId })}
+          options={feature.data.channels || []}
+          hint="Pick a voice channel from this server. The bot joins it as soon as you save." />
       </Card>
     </FeatureFrame>
   );
@@ -2502,6 +2537,7 @@ export default function FeatureModule({ section }) {
     roles: RolesPage,
     verification: VerificationPage,
     'temporary-voice': TemporaryVoicePage,
+    'voice-presence': VoicePresencePage,
     giveaways: CompleteGiveawaysPage,
     applications: ApplicationsPage,
     reminders: RemindersPage,

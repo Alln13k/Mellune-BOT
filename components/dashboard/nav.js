@@ -142,6 +142,12 @@ export const NAV_GROUPS = [
         blurb: 'Voice channels that appear on demand and clean up after.',
       },
       {
+        slug: 'voice-presence',
+        title: 'Always-on voice',
+        icon: Mic,
+        blurb: 'Keep Mellune connected to a voice channel 24/7.',
+      },
+      {
         slug: 'reminders',
         title: 'Reminders',
         icon: BellRing,
