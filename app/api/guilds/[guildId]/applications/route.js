@@ -3,13 +3,13 @@ const { botFetch } = require('../../../../../lib/discordRest');
 const {
   featureRoute,
   getResources,
-  queueJob,
   readBody,
   response,
   snowflake,
   text,
 } = require('../../../../../lib/featureApi');
 const {
+  buildApplicationPanelMessage,
   normalizeQuestion,
   reviewSubmission,
 } = require('../../../../../services/applications/applicationService');
@@ -269,8 +269,8 @@ const POST = featureRoute(async ({ request, guildId, session }) => {
     });
   }
   const data = {
-    title: text(body.title, 100, 'New application'),
-    description: text(body.description, 1000, 'Answer the questions below.'),
+    title: text(body.title, 100) || 'New application',
+    description: text(body.description, 1000) || 'Answer the questions below.',
     destinationChannelId: snowflake(body.destinationChannelId),
     notificationChannelId: snowflake(body.notificationChannelId),
     reviewRoleId: snowflake(body.reviewRoleId),
@@ -280,7 +280,7 @@ const POST = featureRoute(async ({ request, guildId, session }) => {
     requiredRoleId: snowflake(body.requiredRoleId),
     minLevel: Math.min(1000, Math.max(0, Number(body.minLevel) || 0)),
     minMembershipHours: Math.min(8760, Math.max(0, Number(body.minMembershipHours) || 0)),
-    enabled: body.enabled === true,
+    enabled: body.publish === true || body.enabled === true,
   };
   const existing = body.id
     ? await prisma.applicationForm.findFirst({
@@ -302,17 +302,35 @@ const POST = featureRoute(async ({ request, guildId, session }) => {
       include: { questions: { where: { deletedAt: null }, orderBy: { position: 'asc' } } },
     });
   });
-  let jobId = null;
-  if (body.publish) {
-    if (!form.enabled) throw new Error('Enable the application type before publishing it.');
-    if (!form.destinationChannelId) throw new Error('Choose a destination channel before publishing it.');
-    const job = await queueJob(prisma, guildId, 'SEND_APPLICATION_PANEL', {
-      formId: form.id,
-      channelId: form.destinationChannelId,
+  if (!body.publish) return response({ form });
+  if (!form.destinationChannelId) {
+    return response({
+      form,
+      warning: 'Choose a panel channel before sending it.',
     });
-    jobId = job.id;
   }
-  return response({ form, jobId });
+  if (!form.questions.length) {
+    return response({
+      form,
+      warning: 'Add at least one question before sending the panel.',
+    });
+  }
+  try {
+    await botFetch(`/channels/${form.destinationChannelId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(buildApplicationPanelMessage(form)),
+    });
+  } catch (error) {
+    const status = Number(error.message.match(/\((\d+)\)/)?.[1]);
+    const warning =
+      status === 403
+        ? 'Mellune cannot send messages in that channel.'
+        : status === 404
+          ? 'That channel was not found.'
+          : 'Could not send the application panel.';
+    return response({ form, warning });
+  }
+  return response({ form, sent: true });
 });
 
 const DELETE = featureRoute(async ({ request, guildId }) => {

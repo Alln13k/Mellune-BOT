@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  buildApplicationPanelMessage,
   checkRequirements,
   checkSubmissionLimit,
   createSubmission,
@@ -20,6 +21,23 @@ function question(type, extra = {}) {
     ...extra,
   };
 }
+
+test('application panel message is a Discord embed with an Apply button', () => {
+  const message = buildApplicationPanelMessage({
+    id: 7,
+    title: 'Staff application',
+    description: 'Tell us about yourself.',
+  });
+  assert.equal(message.embeds[0].title, 'Staff application');
+  assert.equal(message.embeds[0].description, 'Tell us about yourself.');
+  assert.equal(message.embeds[0].color, 0x3c527f);
+  assert.equal(message.components[0].components[0].custom_id, 'application-open:7');
+  assert.equal(message.components[0].components[0].label, 'Apply');
+  assert.equal(
+    buildApplicationPanelMessage({ id: 1, title: 'Staff', description: '   ' }).embeds[0].description,
+    undefined,
+  );
+});
 
 test('application answers validate every configured question type', () => {
   assert.equal(normalizeAnswer(question('SHORT_TEXT'), '  Luna  '), 'Luna');
