@@ -235,12 +235,15 @@ test('a failed reminder DM does not stop the other deliveries', async () => {
   assert.match(reminder.saved.error, /fail/);
 });
 
-test('slash event command stays short', () => {
+test('slash event command can create and manage events without a long option list', () => {
   const command = require('../commands/community/event');
   const json = command.data.toJSON();
-  assert.equal(json.name, 'event');
-  assert.ok(json.options.length <= 8);
+  const names = json.options.map((option) => option.name).sort();
+  assert.deepEqual(names, ['cancel', 'create', 'edit', 'end', 'info', 'list', 'publish', 'remind']);
+  const create = json.options.find((option) => option.name === 'create');
+  assert.ok(create.options.length <= 8);
   assert.equal(typeof command.execute, 'function');
+  assert.equal(typeof command.autocomplete, 'function');
 });
 
 test('event embed shows the schedule, capacity and Mellune color', () => {
