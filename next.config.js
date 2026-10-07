@@ -12,6 +12,7 @@ const securityHeaders = [
 const nextConfig = {
   typedRoutes: true,
   poweredByHeader: false,
+  serverExternalPackages: ['@resvg/resvg-js'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
