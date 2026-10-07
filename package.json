@@ -2,14 +2,18 @@
   "name": "mellune-bot",
   "version": "1.0.0",
   "description": "A cozy, modular Discord moderation and community bot for Mellune.",
-  "main": "main.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node main.js",
-    "dev": "node --watch main.js",
+    "start": "node scripts/generate-prisma.js && node index.js",
+    "dev": "node --watch index.js",
     "deploy:guild": "node scripts/deploy-commands.js guild",
     "deploy:global": "node scripts/deploy-commands.js global",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev --name init",
+    "postinstall": "node scripts/generate-prisma.js",
+    "prisma:generate": "node scripts/generate-prisma.js",
+    "prisma:migrate": "prisma migrate deploy",
+    "dashboard:dev": "next dev",
+    "dashboard:build": "next build",
+    "dashboard:start": "next start",
     "lint": "eslint .",
     "test": "node --test"
   },
@@ -17,14 +21,21 @@
     "node": ">=18.18.0"
   },
   "dependencies": {
+    "@discordjs/voice": "^0.19.2",
     "@prisma/client": "^6.16.0",
+    "@resvg/resvg-js": "^2.6.2",
     "discord.js": "^14.22.1",
-    "dotenv": "^17.2.2"
+    "dotenv": "^17.2.2",
+    "lucide-react": "^1.52.0",
+    "next": "^16.3.8",
+    "prisma": "^6.16.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
     "eslint": "^9.35.0",
-    "prettier": "^3.6.2",
-    "prisma": "^6.16.0"
+    "eslint-plugin-react": "^7.37.5",
+    "prettier": "^3.6.2"
   }
 }

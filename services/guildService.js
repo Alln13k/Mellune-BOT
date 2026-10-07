@@ -9,8 +9,24 @@ async function ensureGuild(prisma, guild) {
 async function ensureUser(prisma, guildId, user) {
   return prisma.user.upsert({
     where: { guildId_userId: { guildId, userId: user.id } },
-    update: { username: user.username },
-    create: { guildId, userId: user.id, username: user.username },
+    update: {
+      username: user.username,
+      displayName: user.globalName || user.displayName || null,
+      avatar: user.avatar || null,
+      ...(user.joinedTimestamp
+        ? { joinedAt: new Date(user.joinedTimestamp) }
+        : {}),
+    },
+    create: {
+      guildId,
+      userId: user.id,
+      username: user.username,
+      displayName: user.globalName || user.displayName || null,
+      avatar: user.avatar || null,
+      ...(user.joinedTimestamp
+        ? { joinedAt: new Date(user.joinedTimestamp) }
+        : {}),
+    },
   });
 }
 
