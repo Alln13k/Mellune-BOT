@@ -21,14 +21,14 @@ async function handleEventInteraction(interaction, prisma) {
     },
   });
   const content = result.decision.action === 'waitlist'
-    ? `The event is full. You're on the waitlist (#${result.position}).`
+    ? `This event is full. You're on the waitlist (#${result.position}). We'll DM you if a spot opens.`
     : result.decision.action === 'noop'
-      ? 'Your response is already saved.'
+      ? 'That answer is already saved.'
       : result.decision.status === 'GOING'
-        ? "You're going."
+        ? "You're going. You'll get a DM 1 day, 1 hour, and 15 minutes before it starts."
         : result.decision.status === 'TENTATIVE'
-          ? "You're tentative."
-          : 'You declined this event.';
+          ? "You're marked as maybe. Only people who are going get the automatic reminders."
+          : "You're marked as can't go.";
   await interaction.editReply({ content });
   return true;
 }
