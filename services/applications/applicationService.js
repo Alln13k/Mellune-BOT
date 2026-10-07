@@ -242,7 +242,6 @@ async function transitionSubmission(prisma, {
       id: submissionId,
       guildId,
       deletedAt: null,
-      form: { guildId, deletedAt: null },
     },
     include: { form: true },
   });

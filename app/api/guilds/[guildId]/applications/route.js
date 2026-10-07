@@ -90,7 +90,7 @@ const GET = featureRoute(async ({ request, guildId }) => {
   const formsWhere = { guildId, deletedAt: null };
   const weekStart = calendarStart(new Date());
   const monthStart = calendarStart(new Date(), true);
-  const [forms, counts, latest, weekRows, monthRows, reviewRows, resources] =
+  const [forms, counts, latest, weekRows, monthRows, reviewRows, statusCounts, resources] =
     await Promise.all([
       prisma.applicationForm.findMany({
         where: formsWhere,
@@ -131,23 +131,29 @@ const GET = featureRoute(async ({ request, guildId }) => {
           AND "reviewedAt" IS NOT NULL
         GROUP BY "formId"
       `,
+      prisma.applicationSubmission.groupBy({
+        by: ['status'],
+        where: { guildId, deletedAt: null },
+        _count: { _all: true },
+      }),
       getResources(guildId),
     ]);
   const stats = makeStats(forms, counts, latest, weekRows, monthRows, reviewRows);
-  const overview = stats.reduce(
-    (total, item) => ({
-      pending: total.pending + item.pending,
-      approved: total.approved + item.approved,
-      rejected: total.rejected + item.rejected,
-      total: total.total + item.total,
-    }),
+  const overview = statusCounts.reduce(
+    (total, row) => {
+      const count = row._count._all;
+      total.total += count;
+      if (row.status === 'PENDING') total.pending += count;
+      if (row.status === 'APPROVED') total.approved += count;
+      if (row.status === 'REJECTED') total.rejected += count;
+      return total;
+    },
     { pending: 0, approved: 0, rejected: 0, total: 0 },
   );
   const selectedForm = forms.find((form) => form.id === requestedFormId) || forms[0] || null;
   const submissionWhere = {
     guildId,
     deletedAt: null,
-    ...(selectedForm ? { formId: selectedForm.id } : {}),
     ...(status ? { status } : {}),
     ...(from || to ? { submittedAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
     ...(search
@@ -160,33 +166,32 @@ const GET = featureRoute(async ({ request, guildId }) => {
         }
       : {}),
   };
-  const [submissions, submissionTotal] = selectedForm
-    ? await Promise.all([
-        prisma.applicationSubmission.findMany({
-          where: submissionWhere,
-          orderBy: { submittedAt: sort },
-          skip: (page - 1) * pageSize,
-          take: pageSize,
-          select: {
-            id: true,
-            formId: true,
-            userId: true,
-            username: true,
-            displayName: true,
-            avatar: true,
-            status: true,
-            submittedAt: true,
-            reviewedAt: true,
-            reviewerId: true,
-            reviewerUsername: true,
-            rejectionReason: true,
-            dmStatus: true,
-            dmError: true,
-          },
-        }),
-        prisma.applicationSubmission.count({ where: submissionWhere }),
-      ])
-    : [[], 0];
+  const [submissions, submissionTotal] = await Promise.all([
+    prisma.applicationSubmission.findMany({
+      where: submissionWhere,
+      orderBy: { submittedAt: sort },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        formId: true,
+        userId: true,
+        username: true,
+        displayName: true,
+        avatar: true,
+        status: true,
+        submittedAt: true,
+        reviewedAt: true,
+        reviewerId: true,
+        reviewerUsername: true,
+        rejectionReason: true,
+        dmStatus: true,
+        dmError: true,
+        form: { select: { id: true, title: true, deletedAt: true } },
+      },
+    }),
+    prisma.applicationSubmission.count({ where: submissionWhere }),
+  ]);
   return response({
     types: stats,
     overview,

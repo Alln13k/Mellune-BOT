@@ -347,21 +347,24 @@ function ApplicationBuilder({ data, draft, setDraft, saving, onSave, onDelete })
 
 function ApplicationReview({ submission, guildId, notify, onClose, onReload }) {
   const [working, setWorking] = useState(false);
-  const [reason, setReason] = useState('');
-  async function review(action, status) {
+  const [reason, setReason] = useState(submission.rejectionReason || '');
+  const answers = Array.isArray(submission.answers) ? submission.answers : [];
+  async function decide(status) {
     if (working) return;
     if (status === 'REJECTED' && !reason.trim()) {
-      setReason(window.prompt('Reason for rejecting this application:') || '');
+      notify('Write a rejection reason, then reject the application.', 'error');
       return;
     }
-    if (!window.confirm(`${action} this application?`)) return;
     setWorking(true);
     try {
       const result = await guildApi(guildId, `applications/${submission.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ status, reason }),
+        body: JSON.stringify({ status, reason: reason.trim() }),
       });
-      notify(result.warning || `Application ${status.toLowerCase()}.`, result.warning ? 'error' : 'success');
+      notify(
+        result.warning || `Application ${status.toLowerCase()}.`,
+        result.warning ? 'error' : 'success',
+      );
       await onReload();
     } catch (error) {
       notify(error.message, 'error');
@@ -370,6 +373,7 @@ function ApplicationReview({ submission, guildId, notify, onClose, onReload }) {
     }
   }
   async function reopen() {
+    if (working) return;
     setWorking(true);
     try {
       await guildApi(guildId, `applications/${submission.id}`, {
@@ -385,7 +389,8 @@ function ApplicationReview({ submission, guildId, notify, onClose, onReload }) {
     }
   }
   async function remove() {
-    if (!window.confirm('Delete this application record?')) return;
+    if (working) return;
+    setWorking(true);
     try {
       await guildApi(guildId, `applications/${submission.id}`, { method: 'DELETE' });
       notify('Application deleted.');
@@ -393,13 +398,15 @@ function ApplicationReview({ submission, guildId, notify, onClose, onReload }) {
       await onReload();
     } catch (error) {
       notify(error.message, 'error');
+    } finally {
+      setWorking(false);
     }
   }
   return (
     <Card
-      title={submission.form.title}
-      description={`Application #${submission.id} · submitted ${formatDate(submission.submittedAt)}`}
-      action={<button type="button" className="icon-button" aria-label="Close application" onClick={onClose}><X size={17} /></button>}
+      title={submission.form?.title || 'Application'}
+      description={`#${submission.id} · submitted ${formatDate(submission.submittedAt)}${submission.form?.deletedAt ? ' · this application type was deleted' : ''}`}
+      action={<button type="button" className="button button-small button-ghost" onClick={onClose}>Back to queue</button>}
     >
       <div className="application-review-header">
         <Applicant submission={submission} />
@@ -408,15 +415,35 @@ function ApplicationReview({ submission, guildId, notify, onClose, onReload }) {
       <div className="details">
         <div><dt>Submitted</dt><dd>{formatDate(submission.submittedAt)}</dd></div>
         <div><dt>Reviewed</dt><dd>{submission.reviewedAt ? `${formatDate(submission.reviewedAt)} by @${submission.reviewerUsername || submission.reviewerId}` : 'Not reviewed'}</dd></div>
-        <div><dt>DM</dt><dd>{submission.dmStatus === 'FAILED' ? `⚠️ ${submission.dmError || 'Could not be delivered.'}` : submission.dmStatus}</dd></div>
+        <div><dt>Applicant DM</dt><dd>{submission.dmStatus === 'FAILED' ? submission.dmError || 'Could not be delivered.' : submission.dmStatus || 'Not sent'}</dd></div>
       </div>
       <div className="application-answer-list">
-        {submission.answers.map((answer) => (
+        {answers.length ? answers.map((answer) => (
           <div className="application-answer" key={answer.id}>
             <strong>{answer.questionLabel || answer.question?.label || 'Question'}</strong>
             <p>{answer.answer || 'No answer'}</p>
           </div>
-        ))}
+        )) : <EmptyState icon={ClipboardList} title="No answers stored" />}
+      </div>
+      {submission.status === 'PENDING' && (
+        <Field label="Decision note" hint="Required when rejecting. Sent to the applicant with the decision.">
+          <textarea rows="3" value={reason} maxLength="500" placeholder="Reason for this decision" onChange={(event) => setReason(event.target.value)} />
+        </Field>
+      )}
+      {submission.rejectionReason && submission.status === 'REJECTED' && (
+        <p className="subtle">Rejection reason: {submission.rejectionReason}</p>
+      )}
+      <div className="form-row">
+        {submission.status === 'PENDING' && (
+          <>
+            <button type="button" className="button" disabled={working} onClick={() => decide('APPROVED')}><Check size={16} /> Approve</button>
+            <button type="button" className="button button-ghost" disabled={working} onClick={() => decide('REJECTED')}><X size={16} /> Reject</button>
+          </>
+        )}
+        {submission.status === 'REJECTED' && (
+          <button type="button" className="button button-ghost" disabled={working} onClick={reopen}><RotateCcw size={16} /> Reopen</button>
+        )}
+        <button type="button" className="button button-ghost" disabled={working} onClick={remove}><Trash2 size={16} /> Delete</button>
       </div>
       <Card title="Review history">
         {submission.history?.length ? (
@@ -433,18 +460,6 @@ function ApplicationReview({ submission, guildId, notify, onClose, onReload }) {
           </ul>
         ) : <EmptyState icon={ClipboardList} title="No review history" />}
       </Card>
-      <div className="form-row">
-        {submission.status === 'PENDING' && (
-          <>
-            <button type="button" className="button" disabled={working} onClick={() => review('Approve', 'APPROVED')}><Check size={16} /> Approve</button>
-            <button type="button" className="button button-ghost" disabled={working} onClick={() => review('Reject', 'REJECTED')}><X size={16} /> Reject</button>
-          </>
-        )}
-        {submission.status === 'REJECTED' && (
-          <button type="button" className="button button-ghost" disabled={working} onClick={reopen}><RotateCcw size={16} /> Reopen</button>
-        )}
-        <button type="button" className="button button-ghost" onClick={remove}><Trash2 size={16} /> Delete</button>
-      </div>
     </Card>
   );
 }
@@ -459,6 +474,7 @@ export default function ApplicationsPage() {
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
   const [detail, setDetail] = useState(null);
+  const [view, setView] = useState('review');
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   const query = useMemo(() => {
@@ -571,83 +587,67 @@ export default function ApplicationsPage() {
       <PageHeader
         icon={ClipboardList}
         title="Applications"
-        description="Create application types, review submissions, and keep a complete decision history."
-        actions={<button type="button" className="button" onClick={newType}><Plus size={16} /> New type</button>}
+        description={view === 'review' ? 'Open a submission, read the answers, then approve or reject it.' : 'Create application types and send their panels.'}
+        actions={
+          <div className="form-row">
+            <div className="segmented" role="group" aria-label="Applications sections">
+              <button type="button" className={view === 'review' ? 'is-active' : ''} onClick={() => setView('review')}>Review</button>
+              <button type="button" className={view === 'setup' ? 'is-active' : ''} onClick={() => setView('setup')}>Setup</button>
+            </div>
+            {view === 'setup' && <button type="button" className="button" onClick={newType}><Plus size={16} /> New type</button>}
+          </div>
+        }
       />
       <section className="stats">
         {[
-          ['Pending', feature.data.overview.pending],
-          ['Approved', feature.data.overview.approved],
-          ['Rejected', feature.data.overview.rejected],
-          ['Total', feature.data.overview.total],
+          ['Pending', feature.data.overview?.pending || 0],
+          ['Approved', feature.data.overview?.approved || 0],
+          ['Rejected', feature.data.overview?.rejected || 0],
+          ['Total', feature.data.overview?.total || 0],
         ].map(([label, value]) => (
           <article className="card stat" key={label}><div><div className="stat-label">{label}</div><div className="stat-value">{value.toLocaleString()}</div></div></article>
         ))}
       </section>
-      <div className="grid-2">
-        <Card title="Application types" description="Each type has its own questions, requirements, and statistics.">
-          {feature.data.types.length ? (
-            <div className="application-type-list">
-              {feature.data.types.map((item) => (
-                <TypeStats item={item} selected={item.id === selectedTypeId} key={item.id} onClick={() => { savedStamp.current = 0; setSelectedTypeId(item.id); setPage(1); setDetail(null); }} />
-              ))}
-            </div>
-          ) : <EmptyState icon={ClipboardList} title="No application types yet">Create a type to start collecting applications.</EmptyState>}
-        </Card>
-        {draft ? (
-          <ApplicationBuilder
-            data={feature.data}
-            draft={draft}
-            setDraft={setDraft}
-            saving={saving}
-            onSave={saveType}
-            onDelete={deleteType}
-          />
+      {view === 'review' ? (
+        detail ? (
+          <ApplicationReview key={`${detail.id}-${detail.status}`} submission={detail} guildId={guild.id} notify={notify} onClose={() => setDetail(null)} onReload={reloadDetail} />
         ) : (
-          <Card title="Application types" description="Select a type to edit its builder and review inbox.">
-            <EmptyState icon={Eye} title="Choose an application type" />
-          </Card>
-        )}
-      </div>
-      {selectedTypeId > 0 && (
-        <Card title={`${selectedType?.title || 'Application'} inbox`} description="Search and review paginated submissions without loading the full archive.">
-          <div className="toolbar">
-            <div className="form-row">
-              <label className="search"><Search size={16} /><input value={search} placeholder="Search name, username, or ID" onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></label>
-              <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
-                <option value="">All statuses</option>
-                <option value="PENDING">Pending</option>
-                <option value="APPROVED">Approved</option>
-                <option value="REJECTED">Rejected</option>
-              </select>
-              <select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-              </select>
-              <label className="field-inline">From <input type="date" value={from} onChange={(event) => { setFrom(event.target.value); setPage(1); }} /></label>
-              <label className="field-inline">To <input type="date" value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} /></label>
+          <Card title="Review queue" description="Every submission for this server, including older application types.">
+            <div className="toolbar">
+              <div className="form-row">
+                <label className="search"><Search size={16} /><input value={search} placeholder="Search name, username, or ID" onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></label>
+                <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+                  <option value="">All statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+                <select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}>
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </select>
+                <label className="field-inline">From <input type="date" value={from} onChange={(event) => { setFrom(event.target.value); setPage(1); }} /></label>
+                <label className="field-inline">To <input type="date" value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} /></label>
+              </div>
             </div>
-          </div>
-          {detail ? (
-            <ApplicationReview submission={detail} guildId={guild.id} notify={notify} onClose={() => setDetail(null)} onReload={reloadDetail} />
-          ) : feature.data.submissions.length ? (
-            <div className="table-wrap">
-              <table className="table">
-                <thead><tr><th>Applicant</th><th>Status</th><th>Submitted</th><th /></tr></thead>
-                <tbody>
-                  {feature.data.submissions.map((submission) => (
-                    <tr key={submission.id}>
-                      <td><Applicant submission={submission} compact /></td>
-                      <td><ApplicationStatus status={submission.status} /></td>
-                      <td>{formatDate(submission.submittedAt)}</td>
-                      <td><button type="button" className="button button-small button-ghost" onClick={() => openSubmission(submission.id)}>Review</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : <EmptyState icon={ClipboardList} title="No applications found">Try another filter or wait for the next submission.</EmptyState>}
-          {!detail && (
+            {feature.data.submissions.length ? (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead><tr><th>Applicant</th><th>Type</th><th>Status</th><th>Submitted</th><th /></tr></thead>
+                  <tbody>
+                    {feature.data.submissions.map((submission) => (
+                      <tr key={submission.id}>
+                        <td><Applicant submission={submission} compact /></td>
+                        <td>{submission.form?.title || 'Deleted type'}</td>
+                        <td><ApplicationStatus status={submission.status} /></td>
+                        <td>{formatDate(submission.submittedAt)}</td>
+                        <td><button type="button" className="button button-small" onClick={() => openSubmission(submission.id)}>Review</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <EmptyState icon={ClipboardList} title="No applications yet">Submissions appear here as soon as someone applies.</EmptyState>}
             <div className="pagination">
               <span className="subtle">Page {feature.data.pagination.page} of {feature.data.pagination.pages} · {feature.data.pagination.total} submissions</span>
               <div className="form-row">
@@ -655,8 +655,34 @@ export default function ApplicationsPage() {
                 <button type="button" className="button button-small button-ghost" disabled={page >= feature.data.pagination.pages} onClick={() => setPage(page + 1)}>Next</button>
               </div>
             </div>
+          </Card>
+        )
+      ) : (
+        <div className="grid-2">
+          <Card title="Application types" description="Each type has its own questions, requirements, and statistics.">
+            {feature.data.types.length ? (
+              <div className="application-type-list">
+                {feature.data.types.map((item) => (
+                  <TypeStats item={item} selected={item.id === selectedTypeId} key={item.id} onClick={() => { savedStamp.current = 0; setSelectedTypeId(item.id); setDetail(null); }} />
+                ))}
+              </div>
+            ) : <EmptyState icon={ClipboardList} title="No application types yet">Create a type, then send its panel.</EmptyState>}
+          </Card>
+          {draft ? (
+            <ApplicationBuilder
+              data={feature.data}
+              draft={draft}
+              setDraft={setDraft}
+              saving={saving}
+              onSave={saveType}
+              onDelete={deleteType}
+            />
+          ) : (
+            <Card title="Application builder">
+              <EmptyState icon={Eye} title="Choose an application type" />
+            </Card>
           )}
-        </Card>
+        </div>
       )}
     </>
   );
