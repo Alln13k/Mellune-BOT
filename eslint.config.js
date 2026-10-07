@@ -51,6 +51,7 @@ module.exports = [
         setInterval: 'readonly',
         clearInterval: 'readonly',
         AbortController: 'readonly',
+        FileReader: 'readonly',
       },
     },
   },

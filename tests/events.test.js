@@ -314,3 +314,22 @@ test('the posted event message is image-only and declares its attachment', async
   const metadata = JSON.parse(typeof rawMetadata === 'string' ? rawMetadata : await rawMetadata.text());
   assert.deepEqual(metadata.attachments, [{ id: 0, filename: 'event-card.png' }]);
 });
+
+test('uploaded local images are kept as data URLs on the event', () => {
+  const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const input = normalizeEventInput({
+    name: 'Game night',
+    date: '2026-10-10',
+    time: '20:00',
+    timezone: 'UTC',
+    imageUrl: image,
+  });
+  assert.equal(input.imageUrl, image);
+  assert.equal(normalizeEventInput({
+    name: 'Game night',
+    date: '2026-10-10',
+    time: '20:00',
+    timezone: 'UTC',
+    imageUrl: 'javascript:alert(1)',
+  }).imageUrl, null);
+});
