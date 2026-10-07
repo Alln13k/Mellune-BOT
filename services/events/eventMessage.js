@@ -1,3 +1,5 @@
+const path = require('node:path');
+const { Resvg } = require('@resvg/resvg-js');
 const { MELLUNE_DEFAULT_EMBED_COLOR } = require('../../lib/constants');
 const {
   effectiveStatus,
@@ -7,6 +9,12 @@ const {
 } = require('./eventLogic');
 
 const MELLUNE_DEFAULT_COLOR_INT = Number.parseInt(MELLUNE_DEFAULT_EMBED_COLOR.slice(1), 16);
+const EVENT_CARD_FONTS = [
+  path.join(__dirname, '../../assets/fonts/Inter-Regular.ttf'),
+  path.join(__dirname, '../../assets/fonts/Inter-Bold.ttf'),
+];
+const EVENT_CARD_WIDTH = 1200;
+const EVENT_CARD_HEIGHT = 675;
 
 const pendingSync = new Map();
 
@@ -16,7 +24,103 @@ function colorInt(value) {
     : MELLUNE_DEFAULT_COLOR_INT;
 }
 
-function buildEventEmbed(event, counts = {}) {
+function escapeSvg(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+function clipText(value, max) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
+}
+
+function compactNumber(value) {
+  return Number(value || 0).toLocaleString('en-US');
+}
+
+async function inlineImage(url) {
+  if (!url || String(url).startsWith('data:')) return url || null;
+  try {
+    const response = await fetch(url, { signal: globalThis.AbortSignal.timeout(5000) });
+    if (!response.ok) return null;
+    const type = (response.headers.get('content-type') || 'image/png').split(';')[0].trim();
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(type)) return null;
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.length || bytes.length > 3_000_000) return null;
+    return `data:${type};base64,${bytes.toString('base64')}`;
+  } catch (error) {
+    console.error('Event card image fetch failed:', error.message);
+    return null;
+  }
+}
+
+function eventCardSvg(event, counts, background) {
+  const when = formatEventWhen(event);
+  const status = statusLabel(effectiveStatus(event));
+  const going = counts.going || 0;
+  const waiting = counts.waitlist || 0;
+  const capacity = event.maxAttendees || null;
+  const capacityLabel = capacity ? `${going} / ${capacity}` : `${going}`;
+  const name = clipText(event.name, 36);
+  const description = clipText(event.description || 'Tap Going to join this event.', 76);
+  const location = clipText(event.location || 'Discord', 36);
+  const progress = capacity ? Math.min(1, going / capacity) : 1;
+  const progressWidth = Math.round(430 * progress);
+  const backgroundMarkup = background
+    ? `<image href="${escapeSvg(background)}" x="0" y="0" width="${EVENT_CARD_WIDTH}" height="${EVENT_CARD_HEIGHT}" preserveAspectRatio="xMidYMid slice"/>`
+    : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${EVENT_CARD_WIDTH}" height="${EVENT_CARD_HEIGHT}" viewBox="0 0 ${EVENT_CARD_WIDTH} ${EVENT_CARD_HEIGHT}">
+    <defs>
+      <linearGradient id="shade" x1="0" x2="1" y1="0" y2="1">
+        <stop stop-color="#0b0e16" stop-opacity="0.96"/>
+        <stop offset="0.58" stop-color="#151c2c" stop-opacity="0.86"/>
+        <stop offset="1" stop-color="#3C527F" stop-opacity="0.92"/>
+      </linearGradient>
+      <linearGradient id="accent" x1="0" x2="1">
+        <stop stop-color="#3C527F"/>
+        <stop offset="1" stop-color="#8ca9dc"/>
+      </linearGradient>
+      <clipPath id="card"><rect width="${EVENT_CARD_WIDTH}" height="${EVENT_CARD_HEIGHT}" rx="32"/></clipPath>
+    </defs>
+    <rect width="${EVENT_CARD_WIDTH}" height="${EVENT_CARD_HEIGHT}" rx="32" fill="#10131b"/>
+    <g clip-path="url(#card)">${backgroundMarkup}<rect width="${EVENT_CARD_WIDTH}" height="${EVENT_CARD_HEIGHT}" fill="url(#shade)"/></g>
+    <rect x="34" y="34" width="1132" height="607" rx="26" fill="#111622" fill-opacity="0.48" stroke="#9ab7ef" stroke-opacity="0.32"/>
+    <text x="78" y="92" fill="#c9d8f7" font-family="Inter" font-size="22" font-weight="700" letter-spacing="3">MELLUNE EVENT</text>
+    <text x="78" y="174" fill="#ffffff" font-family="Inter" font-size="52" font-weight="700">${escapeSvg(name)}</text>
+    <text x="78" y="220" fill="#d6def0" font-family="Inter" font-size="24">${escapeSvg(description)}</text>
+    <text x="78" y="300" fill="#ffffff" font-family="Inter" font-size="27" font-weight="700">DATE  ·  ${escapeSvg(when.date)}</text>
+    <text x="78" y="340" fill="#d6def0" font-family="Inter" font-size="23">TIME  ·  ${escapeSvg(when.time)} · ${escapeSvg(when.timeZone)}</text>
+    <text x="78" y="380" fill="#d6def0" font-family="Inter" font-size="23">PLACE  ·  ${escapeSvg(location)}</text>
+    <rect x="78" y="430" width="430" height="18" rx="9" fill="#303746"/>
+    <rect x="78" y="430" width="${progressWidth}" height="18" rx="9" fill="url(#accent)"/>
+    <text x="78" y="498" fill="#ffffff" font-family="Inter" font-size="38" font-weight="700">${escapeSvg(capacityLabel)}</text>
+    <text x="78" y="535" fill="#c9d8f7" font-family="Inter" font-size="22">${capacity ? 'people going' : 'people going · no limit'}</text>
+    <text x="78" y="590" fill="#b5c0d8" font-family="Inter" font-size="20">${waiting ? `${compactNumber(waiting)} waiting · ` : ''}Starts ${escapeSvg(when.date)} at ${escapeSvg(when.time)}</text>
+    <rect x="784" y="424" width="300" height="92" rx="18" fill="#3C527F" fill-opacity="0.82"/>
+    <text x="934" y="465" text-anchor="middle" fill="#ffffff" font-family="Inter" font-size="25" font-weight="700">${escapeSvg(status)}</text>
+    <text x="934" y="496" text-anchor="middle" fill="#d9e5ff" font-family="Inter" font-size="18">Tap Going below</text>
+  </svg>`;
+}
+
+async function buildEventCardPng(event, counts = {}, backgroundUrl = null) {
+  const background = await inlineImage(backgroundUrl);
+  const resvg = new Resvg(eventCardSvg(event, counts, background), {
+    fitTo: { mode: 'width', value: EVENT_CARD_WIDTH },
+    font: {
+      fontFiles: EVENT_CARD_FONTS,
+      loadSystemFonts: false,
+      defaultFontFamily: 'Inter',
+    },
+  });
+  const png = resvg.render().asPng();
+  if (!png?.length) throw new Error('Event card render produced an empty image.');
+  return Buffer.from(png);
+}
+
+function buildEventEmbed(event, counts = {}, renderedImageUrl = null) {
   const when = formatEventWhen(event);
   const going = counts.going || 0;
   const capacity = event.maxAttendees || null;
@@ -28,7 +132,7 @@ function buildEventEmbed(event, counts = {}) {
   const embed = {
     color: colorInt(event.color),
     title: event.embed?.title || event.name,
-    description: event.embed?.description || event.description || 'Tap **Going** if you will be there. Mellune DMs you 1 day, 1 hour, and 15 minutes before.',
+    description: event.embed?.description || event.description || 'Tap **Going** to join now. Mellune DMs you 15 minutes before and when it starts.',
     fields: [
       { name: 'Date', value: `📅 ${when.date}\n<t:${unix}:D>`, inline: true },
       {
@@ -41,9 +145,10 @@ function buildEventEmbed(event, counts = {}) {
       { name: 'Available spots', value: capacity ? `🎟️ ${spots} left` : '🎟️ No limit', inline: true },
       { name: 'Status', value: `${statusLabel(status)}\n<t:${unix}:R>`, inline: true },
     ],
-    footer: { text: 'Going gets an automatic DM 1 day, 1 hour, and 15 minutes before.' },
+    footer: { text: 'Going gets an automatic DM 15 minutes before and when it starts.' },
   };
-  if (event.imageUrl) embed.image = { url: event.imageUrl };
+  if (renderedImageUrl) embed.image = { url: renderedImageUrl };
+  else if (event.imageUrl) embed.image = { url: event.imageUrl };
   return embed;
 }
 
@@ -75,13 +180,20 @@ function buildEventComponents(event, counts = {}) {
   return rows;
 }
 
-function buildEventPayload(event, counts) {
+function buildEventPayload(event, counts, renderedImageUrl = null) {
   return {
-    embeds: [buildEventEmbed(event, counts)],
+    embeds: [buildEventEmbed(event, counts, renderedImageUrl)],
     components: buildEventComponents(event, counts),
     allowedMentions: { parse: [] },
     allowed_mentions: { parse: [] },
   };
+}
+
+function multipartPayload(payload, image) {
+  const form = new globalThis.FormData();
+  form.append('payload_json', JSON.stringify(apiPayload(payload)));
+  form.append('files[0]', new globalThis.Blob([image], { type: 'image/png' }), 'event-card.png');
+  return form;
 }
 
 function apiPayload(payload) {
@@ -117,7 +229,16 @@ async function refreshEventMessage(client, eventId) {
   const channel = await client.channels.fetch(event.channelId).catch(() => null);
   const message = await channel?.messages?.fetch(event.messageId).catch(() => null);
   if (!message) return event;
-  await message.edit(buildEventPayload(event, counts));
+  const guild = client.guilds?.cache?.get(event.guildId)
+    || (client.guilds?.fetch ? await client.guilds.fetch(event.guildId).catch(() => null) : null);
+  const background = event.imageUrl || guild?.iconURL?.({ extension: 'png', size: 512 }) || null;
+  const image = await buildEventCardPng(event, counts, background).catch((error) => {
+    console.error(`Event card render failed for ${event.id}:`, error.message);
+    return null;
+  });
+  const payload = buildEventPayload(event, counts, image ? 'attachment://event-card.png' : null);
+  if (image) payload.files = [{ attachment: image, name: 'event-card.png' }];
+  await message.edit(payload);
   return prisma.communityEvent.update({
     where: { id: event.id },
     data: { messageHash: hash },
@@ -158,10 +279,12 @@ module.exports = {
   apiPayload,
   archiveEventThread,
   buildEventComponents,
+  buildEventCardPng,
   buildEventEmbed,
   buildEventPayload,
   countResponses,
   createDiscussionThread,
+  multipartPayload,
   refreshEventMessage,
   scheduleMessageSync,
 };
