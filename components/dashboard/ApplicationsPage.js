@@ -22,7 +22,9 @@ import {
   ErrorNotice,
   Field,
   PageHeader,
+  RoleSelect,
   Skeleton,
+  SelectField,
   Toggle,
   formatDate,
 } from './ui';
@@ -260,25 +262,31 @@ function ApplicationBuilder({ data, draft, setDraft, saving, onSave, onDelete })
         <textarea rows="2" value={draft.description} maxLength="1000" onChange={(event) => setDraft({ ...draft, description: event.target.value })} />
       </Field>
       <div className="form-row">
-        <Field label="Application panel channel">
-          <select value={draft.destinationChannelId || ''} onChange={(event) => setDraft({ ...draft, destinationChannelId: event.target.value })}>
-            <option value="">Choose a channel…</option>
-            {channels.map((channel) => <option value={channel.id} key={channel.id}>#{channel.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Notification channel">
-          <select value={draft.notificationChannelId || ''} onChange={(event) => setDraft({ ...draft, notificationChannelId: event.target.value })}>
-            <option value="">No notification</option>
-            {channels.map((channel) => <option value={channel.id} key={channel.id}>#{channel.name}</option>)}
-          </select>
-        </Field>
+        <SelectField
+          label="Application panel channel"
+          value={draft.destinationChannelId}
+          onChange={(value) => setDraft({ ...draft, destinationChannelId: value })}
+          options={channels}
+          placeholder="Choose a channel…"
+          getLabel={(channel) => `#${channel.name}`}
+        />
+        <SelectField
+          label="Notification channel"
+          value={draft.notificationChannelId}
+          onChange={(value) => setDraft({ ...draft, notificationChannelId: value })}
+          options={channels}
+          placeholder="No notification"
+          getLabel={(channel) => `#${channel.name}`}
+        />
       </div>
-      <Field label="Review role" hint="Dashboard authorization is still enforced server-side. This role identifies the Discord staff group for this type.">
-        <select value={draft.reviewRoleId || ''} onChange={(event) => setDraft({ ...draft, reviewRoleId: event.target.value })}>
-          <option value="">No role selected</option>
-          {roles.map((role) => <option value={role.id} key={role.id}>{role.name}</option>)}
-        </select>
-      </Field>
+      <RoleSelect
+        label="Review role"
+        hint="Dashboard authorization is still enforced server-side. This role identifies the Discord staff group for this type."
+        value={draft.reviewRoleId}
+        onChange={(value) => setDraft({ ...draft, reviewRoleId: value })}
+        roles={roles}
+        placeholder="No role selected"
+      />
       <div className="form-row">
         <Field label="Maximum submissions per user">
           <input type="number" min="1" max="20" value={draft.maxSubmissions} onChange={(event) => setDraft({ ...draft, maxSubmissions: event.target.value })} />
@@ -288,12 +296,13 @@ function ApplicationBuilder({ data, draft, setDraft, saving, onSave, onDelete })
         </Field>
       </div>
       <div className="form-row">
-        <Field label="Required role">
-          <select value={draft.requiredRoleId || ''} onChange={(event) => setDraft({ ...draft, requiredRoleId: event.target.value })}>
-            <option value="">No role requirement</option>
-            {roles.map((role) => <option value={role.id} key={role.id}>{role.name}</option>)}
-          </select>
-        </Field>
+        <RoleSelect
+          label="Required role"
+          value={draft.requiredRoleId}
+          onChange={(value) => setDraft({ ...draft, requiredRoleId: value })}
+          roles={roles}
+          placeholder="No role requirement"
+        />
         <Field label="Minimum Mellune level">
           <input type="number" min="0" value={draft.minLevel} onChange={(event) => setDraft({ ...draft, minLevel: event.target.value })} />
         </Field>

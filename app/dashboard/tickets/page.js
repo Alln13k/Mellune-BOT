@@ -12,6 +12,7 @@ import {
   ErrorNotice,
   Field,
   PageHeader,
+  SelectField,
   Skeleton,
   Toggle,
 } from '../../../components/dashboard/ui';
@@ -536,19 +537,16 @@ export default function TicketBuilderPage() {
                       }
                     />
                   </Field>
-                  <Field label="Discord category id" hint="Optional.">
-                    <input
-                      inputMode="numeric"
-                      value={category.discordCategoryId}
-                      onChange={(event) =>
-                        updateCategory(
-                          index,
-                          'discordCategoryId',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </Field>
+                  <SelectField
+                    label="Discord category"
+                    hint="Optional. New tickets are created in this category."
+                    value={category.discordCategoryId}
+                    onChange={(value) =>
+                      updateCategory(index, 'discordCategoryId', value)
+                    }
+                    options={data?.categories || []}
+                    placeholder="No category"
+                  />
                   <div className="form-row">
                     <Field label="Cooldown (s)">
                       <input
