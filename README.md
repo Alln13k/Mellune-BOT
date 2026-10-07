@@ -84,9 +84,9 @@ npm run deploy:global
 - startup and error handling in `index.js`
 - command and event loaders
 - multi-guild Prisma schema on Supabase Postgres
-- English `/ping`, `/help`, `/server`, `/user`, `/avatar`
+- `/ping` and `/profile`
 - permission-aware `/warn`, `/warnings`, `/clearwarns`, `/timeout`, `/purge`
-- tickets, leveling, fun commands, and `/setup`
+- tickets, leveling, and `/setup`
 - tests, ESLint, and Prettier
 
 ## 7. Tests
@@ -146,7 +146,7 @@ The sidebar groups every module. These pages are wired to the bot and database:
 - **Moderation**: searchable, filterable, paginated case history.
 - **Tickets**: ticket panel and category builder with live preview. The settings are saved; the bot does not post the panel yet.
 - **Welcome**: join/leave messages, DM option and auto-role, used by the bot's `guildMemberAdd` / `guildMemberRemove` events. Placeholders: `{user}`, `{username}`, `{server}`, `{memberCount}`, `{userId}`.
-- **Leveling**: toggles XP and shows the leaderboard.
+- **Leveling**: toggles XP and shows the leaderboard. Member rank cards use `/profile`.
 - **Settings**: account and server details.
 
 Other sections show a "being built" page until the bot supports them. Icons come from `lucide-react`.
