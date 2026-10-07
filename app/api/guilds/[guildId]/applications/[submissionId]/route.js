@@ -15,7 +15,6 @@ async function getSubmission(guildId, submissionId) {
       id,
       guildId,
       deletedAt: null,
-      form: { guildId, deletedAt: null },
     },
     include: {
       form: {
@@ -50,7 +49,7 @@ async function refreshIdentity(guildId, submission) {
   await prisma.applicationSubmission.updateMany({
     where: { id: submission.id, guildId, deletedAt: null },
     data: identity,
-  });
+  }).catch(() => null);
   return { ...submission, ...identity };
 }
 
@@ -86,7 +85,6 @@ const DELETE = featureRoute(async ({ guildId, params }) => {
       id: Number(params.submissionId),
       guildId,
       deletedAt: null,
-      form: { guildId, deletedAt: null },
     },
     data: { deletedAt: new Date() },
   });
