@@ -909,9 +909,10 @@ code.chip {
   cursor: pointer;
 }
 
-.application-type-card:hover {
-  border-color: rgba(185, 167, 255, 0.5);
-  background: var(--lavender-soft);
+.application-type-card:hover,
+.application-type-card.is-selected {
+  border-color: rgba(60, 82, 127, 0.9);
+  background: rgba(60, 82, 127, 0.18);
 }
 
 .application-type-counts {

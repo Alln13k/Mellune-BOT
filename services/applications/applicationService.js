@@ -361,9 +361,37 @@ async function reviewSubmission(prisma, {
   }
 }
 
+function buildApplicationPanelMessage(form) {
+  const title = String(form.title || 'Application').trim().slice(0, 256);
+  const description = String(form.description || '').trim().slice(0, 4096);
+  return {
+    embeds: [
+      {
+        title,
+        ...(description ? { description } : {}),
+        color: 0x3c527f,
+      },
+    ],
+    components: [
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 1,
+            label: 'Apply',
+            custom_id: `application-open:${form.id}`,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 module.exports = {
   QUESTION_TYPES,
   REVIEW_STATUSES,
+  buildApplicationPanelMessage,
   checkRequirements,
   checkSubmissionLimit,
   cleanChoices,

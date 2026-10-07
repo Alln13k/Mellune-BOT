@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   ChevronDown,
@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  Send,
   Trash2,
   X,
 } from 'lucide-react';
@@ -51,6 +52,18 @@ const EMPTY_FORM = {
   questions: [{ ...EMPTY_QUESTION }],
 };
 
+function formToDraft(form) {
+  return {
+    ...EMPTY_FORM,
+    ...form,
+    destinationChannelId: form.destinationChannelId || '',
+    notificationChannelId: form.notificationChannelId || '',
+    reviewRoleId: form.reviewRoleId || '',
+    requiredRoleId: form.requiredRoleId || '',
+    questions: form.questions?.length ? form.questions : [{ ...EMPTY_QUESTION }],
+  };
+}
+
 function statusLabel(status) {
   return status.charAt(0) + status.slice(1).toLowerCase();
 }
@@ -87,9 +100,9 @@ function Applicant({ submission, compact = false }) {
   );
 }
 
-function TypeStats({ item, onClick }) {
+function TypeStats({ item, selected, onClick }) {
   return (
-    <button type="button" className="application-type-card" onClick={onClick}>
+    <button type="button" className={`application-type-card${selected ? ' is-selected' : ''}`} onClick={onClick}>
       <div className="list-main">
         <strong>{item.name}</strong>
         <span className="subtle clamp">{item.description}</span>
@@ -228,8 +241,11 @@ function ApplicationBuilder({ data, draft, setDraft, saving, onSave, onDelete })
               <Trash2 size={15} /> Delete type
             </button>
           )}
-          <button type="button" className="button button-small" disabled={saving} onClick={onSave}>
-            <Save size={15} /> {saving ? 'Saving…' : 'Save type'}
+          <button type="button" className="button button-small button-ghost" disabled={saving} onClick={() => onSave(false)}>
+            <Save size={15} /> {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" className="button button-small" disabled={saving} onClick={() => onSave(true)}>
+            <Send size={15} /> {saving ? 'Sending…' : 'Send panel'}
           </button>
         </div>
       }
@@ -447,7 +463,7 @@ export default function ApplicationsPage() {
   const [saving, setSaving] = useState(false);
   const query = useMemo(() => {
     const params = new URLSearchParams();
-    if (selectedTypeId) params.set('formId', selectedTypeId);
+    if (selectedTypeId > 0) params.set('formId', selectedTypeId);
     if (status) params.set('status', status);
     if (search) params.set('search', search);
     if (sort !== 'newest') params.set('sort', sort);
@@ -458,20 +474,23 @@ export default function ApplicationsPage() {
   }, [selectedTypeId, status, search, sort, from, to, page]);
   const feature = useGuildData(query);
   const selectedType = feature.data?.selectedType;
+  const draftRef = useRef(null);
+  const savedStamp = useRef(0);
+  draftRef.current = draft;
 
   useEffect(() => {
     if (!selectedTypeId && feature.data?.types?.[0]) setSelectedTypeId(feature.data.types[0].id);
   }, [feature.data, selectedTypeId]);
 
   useEffect(() => {
-    if (selectedType) {
-      setDraft({
-        ...EMPTY_FORM,
-        ...selectedType,
-        questions: selectedType.questions?.length ? selectedType.questions : [{ ...EMPTY_QUESTION }],
-      });
-    }
-  }, [selectedType]);
+    if (selectedTypeId === -1 || !selectedType) return;
+    if (selectedTypeId && selectedType.id !== selectedTypeId) return;
+    const stamp = new Date(selectedType.updatedAt || 0).getTime();
+    const current = draftRef.current;
+    if (current?.id === selectedType.id && stamp <= savedStamp.current) return;
+    savedStamp.current = stamp;
+    setDraft(formToDraft(selectedType));
+  }, [selectedType, selectedTypeId]);
 
   async function openSubmission(id) {
     try {
@@ -487,15 +506,24 @@ export default function ApplicationsPage() {
     await feature.reload();
   }
 
-  async function saveType() {
+  async function saveType(publish = false) {
+    if (publish && !draft.destinationChannelId) {
+      notify('Choose a panel channel before sending it.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const result = await guildApi(guild.id, 'applications', {
         method: 'POST',
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ ...draft, publish }),
       });
+      savedStamp.current = new Date(result.form.updatedAt || Date.now()).getTime();
+      setDraft(formToDraft(result.form));
       setSelectedTypeId(result.form.id);
-      notify('Application type saved.');
+      notify(
+        result.warning || (publish ? 'Application panel sent.' : 'Application type saved.'),
+        result.warning ? 'error' : 'success',
+      );
       await feature.reload();
     } catch (error) {
       notify(error.message, 'error');
@@ -511,6 +539,7 @@ export default function ApplicationsPage() {
         method: 'DELETE',
         body: JSON.stringify({ id: draft.id }),
       });
+      savedStamp.current = 0;
       setSelectedTypeId(null);
       setDraft(null);
       notify('Application type deleted.');
@@ -521,8 +550,9 @@ export default function ApplicationsPage() {
   }
 
   function newType() {
+    savedStamp.current = 0;
     setSelectedTypeId(-1);
-    setDraft({ ...EMPTY_FORM, questions: [{ ...EMPTY_QUESTION }] });
+    setDraft({ ...EMPTY_FORM, id: undefined, questions: [{ ...EMPTY_QUESTION }] });
   }
 
   if (feature.error) {
@@ -559,7 +589,7 @@ export default function ApplicationsPage() {
           {feature.data.types.length ? (
             <div className="application-type-list">
               {feature.data.types.map((item) => (
-                <TypeStats item={item} key={item.id} onClick={() => { setSelectedTypeId(item.id); setPage(1); setDetail(null); }} />
+                <TypeStats item={item} selected={item.id === selectedTypeId} key={item.id} onClick={() => { savedStamp.current = 0; setSelectedTypeId(item.id); setPage(1); setDetail(null); }} />
               ))}
             </div>
           ) : <EmptyState icon={ClipboardList} title="No application types yet">Create a type to start collecting applications.</EmptyState>}
