@@ -446,6 +446,7 @@ function renderHash(event, counts) {
     max: event.maxAttendees,
     image: event.imageUrl,
     rsvp: event.rsvpEnabled,
+    layout: 'details-and-card',
     counts,
   });
 }

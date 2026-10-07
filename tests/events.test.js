@@ -302,14 +302,19 @@ test('event cards render as PNGs with live attendance data', async () => {
   assert.ok(image.length > 10_000);
 });
 
-test('the posted event message is image-only and declares its attachment', async () => {
+test('the posted event message keeps the essential details and the card image', async () => {
   const payload = buildEventPayload(
     { ...baseEvent, status: 'UPCOMING' },
     { going: 0 },
     'attachment://event-card.png',
   );
-  assert.deepEqual(Object.keys(payload.embeds[0]).sort(), ['color', 'image', 'title']);
-  assert.equal(payload.embeds[0].title, baseEvent.name);
+  const embed = payload.embeds[0];
+  assert.equal(embed.title, baseEvent.name);
+  assert.equal(embed.image.url, 'attachment://event-card.png');
+  for (const name of ['Date', 'Time', 'Location', 'Attendees', 'Available spots', 'Status']) {
+    assert.ok(embed.fields.some((field) => field.name === name));
+  }
+  assert.match(embed.fields.find((field) => field.name === 'Status').value, /Coming up/);
   const form = multipartPayload(payload, Buffer.from('png'));
   const rawMetadata = form.get('payload_json');
   const metadata = JSON.parse(typeof rawMetadata === 'string' ? rawMetadata : await rawMetadata.text());
@@ -345,6 +350,8 @@ test('live event messages keep the event title and switch the card to started st
   };
   const payload = buildEventPayload(event, { going: 0 }, 'attachment://event-card.png');
   assert.equal(payload.embeds[0].title, 'Roblox game night');
+  assert.match(payload.embeds[0].fields.find((field) => field.name === 'Status').value, /EVENT STARTED/);
+  assert.equal(payload.embeds[0].image.url, 'attachment://event-card.png');
   const image = await buildEventCardPng(event, { going: 0 });
   assert.ok(image.length > 10_000);
 });
